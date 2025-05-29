@@ -179,18 +179,6 @@ document.addEventListener('DOMContentLoaded', () => {
         messageDiv.appendChild(textDiv);
         chatBox.appendChild(messageDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
-
-        // Reproducir sonido si es mensaje de bot y no está "pensando"
-        if (type === 'bot' && !thinking) {
-            const audio = document.getElementById('notificationSound');
-            if (audio) {
-                audio.currentTime = 0;  // reiniciar audio para que suene siempre
-                audio.play().catch(e => {
-                    // En caso de error (ej. sin interacción previa), no hacer nada
-                    console.warn("No se pudo reproducir el sonido", e);
-                });
-            }
-        }
     }
 
     function addMessageToChatThinking() {
