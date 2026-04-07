@@ -11,7 +11,8 @@
     --primary-100: #dbeafe;
     --primary-200: #bfdbfe;
     --accent: #0ea5e9;
-    --bg: #f0f4f8;
+    --bg: #e2e8f0;
+    --bg-chat: #f0f4f8;
     --surface: #ffffff;
     --text: #1e293b;
     --text-secondary: #64748b;
@@ -43,7 +44,8 @@
     --primary-100: rgba(59, 130, 246, 0.15);
     --primary-200: rgba(59, 130, 246, 0.2);
     --accent: #38bdf8;
-    --bg: #0f172a;
+    --bg: #080e1b;
+    --bg-chat: #0f172a;
     --surface: #1e293b;
     --text: #e2e8f0;
     --text-secondary: #94a3b8;
@@ -598,12 +600,129 @@ html, body {
     background: rgba(255,255,255,0.22);
 }
 
+/* ---- Avatar dropdown menu ---- */
+.avatar-menu-wrap {
+    position: relative;
+}
+
+.btn-avatar-menu {
+    width: 38px;
+    height: 38px;
+    border: none;
+    background: rgba(255,255,255,0.12);
+    color: white;
+    border-radius: var(--radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    transition: background var(--transition);
+}
+.btn-avatar-menu:hover {
+    background: rgba(255,255,255,0.22);
+}
+
+.avatar-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 190px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    padding: 6px 0;
+    z-index: 1000;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.avatar-dropdown.hidden {
+    display: none;
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.avatar-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 16px;
+    border: none;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13.5px;
+    cursor: pointer;
+    transition: background var(--transition);
+    text-align: left;
+}
+.avatar-dropdown-item:hover {
+    background: var(--bg);
+}
+.avatar-dropdown-item i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+    opacity: 0.7;
+}
+
+.avatar-dropdown-item--danger {
+    color: var(--danger, #e74c3c);
+}
+.avatar-dropdown-item--danger:hover {
+    background: rgba(231,76,60,0.08);
+}
+
+.avatar-dropdown-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+}
+
+/* Clear chat confirm (in chat) */
+.cb-clear-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.cb-clear-confirm span {
+    font-size: 13.5px;
+}
+.cb-clear-confirm-btns {
+    display: flex;
+    gap: 8px;
+}
+.cb-clear-btn {
+    padding: 6px 16px;
+    font-size: 12.5px;
+    font-family: inherit;
+    font-weight: 600;
+    border: none;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: background var(--transition), transform var(--transition);
+}
+.cb-clear-btn:hover { transform: translateY(-1px); }
+.cb-clear-btn--yes {
+    background: var(--danger);
+    color: #fff;
+}
+.cb-clear-btn--yes:hover { background: #dc2626; }
+.cb-clear-btn--no {
+    background: var(--border);
+    color: var(--text);
+}
+.cb-clear-btn--no:hover { background: var(--text-light); color: #fff; }
+
 /* ---- Messages area ---- */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
-    background: var(--bg);
+    background: var(--bg-chat);
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -777,6 +896,32 @@ html, body {
 }
 
 .cb-maps-link i {
+    font-size: 14px;
+}
+
+/* Botón abrir PDF duplicado */
+.message.bot .message-content a.cb-pdf-open-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #c0392b;
+    background: #fdecea;
+    border: 1px solid #f5b7b1;
+    border-radius: var(--radius-full);
+    text-decoration: none;
+    transition: background var(--transition), transform var(--transition);
+}
+.message.bot .message-content a.cb-pdf-open-btn:hover {
+    background: #f9d6d2;
+    color: #a93226;
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+.cb-pdf-open-btn i {
     font-size: 14px;
 }
 
@@ -1768,62 +1913,68 @@ html, body {
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
 }
 
 .cb-contact-person {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
 }
 
 .cb-contact-avatar {
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     background: var(--primary-50);
     color: var(--primary);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 22px;
     flex-shrink: 0;
 }
 
 .cb-contact-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
 }
 
 .cb-contact-name {
-    font-size: 14px;
+    font-size: 13.5px;
     font-weight: 600;
     color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cb-contact-role {
-    font-size: 12px;
+    font-size: 11.5px;
     color: var(--text-secondary);
-}
-
-.cb-contact-actions {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
 }
 
 .cb-contact-btn {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 16px;
-    font-size: 13px;
+    gap: 5px;
+    padding: 7px 14px;
+    font-size: 12.5px;
     font-weight: 600;
     border-radius: var(--radius-full);
     text-decoration: none;
     transition: all var(--transition);
     cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .cb-contact-btn--call {
@@ -1831,28 +1982,29 @@ html, body {
     color: white;
 }
 
-.cb-contact-btn--call:hover {
+.message.bot .message-content a.cb-contact-btn--call {
+    color: white;
+    text-decoration: none;
+}
+
+.cb-contact-btn--call:hover,
+.message.bot .message-content a.cb-contact-btn--call:hover {
     background: #059669;
     transform: translateY(-1px);
-}
-
-.cb-contact-btn--email {
-    background: var(--primary-50);
-    color: var(--primary);
-    border: 1px solid var(--primary-200);
-}
-
-.cb-contact-btn--email:hover {
-    background: var(--primary);
-    color: white;
-    transform: translateY(-1px);
+    text-decoration: none;
 }
 
 /* ── Formulario solicitud inline ── */
 .cb-contact-form {
-    margin-top: 12px;
-    padding-top: 12px;
+    width: 100%;
+    margin-top: 2px;
+    padding-top: 10px;
     border-top: 1px solid var(--border);
+}
+
+/* cb-contact-actions (legacy) - inline con persona */
+.cb-contact-actions {
+    flex-shrink: 0;
 }
 
 .cb-contact-form-label {
@@ -1946,6 +2098,207 @@ html, body {
     background: rgba(34,197,94,0.1);
     border-color: rgba(34,197,94,0.3);
     color: #4ade80;
+}
+
+/* ===== PROFILE CARD (datos personales) ===== */
+.cb-profile-card,
+.cb-office-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.cb-profile-header,
+.cb-office-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, var(--primary-50) 0%, var(--surface) 100%);
+    border-bottom: 1px solid var(--border);
+}
+
+.cb-profile-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.cb-office-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #f59e0b;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.cb-profile-name,
+.cb-office-name {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cb-profile-name strong,
+.cb-office-name strong {
+    font-size: 14px;
+    color: var(--text);
+}
+
+.cb-profile-name span,
+.cb-office-name span {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.cb-profile-fields,
+.cb-office-fields {
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.cb-profile-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.cb-profile-row > i {
+    font-size: 15px;
+    color: var(--primary-light);
+    margin-top: 2px;
+    width: 18px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.cb-profile-row > div {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.cb-profile-row .cb-field-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cb-profile-row .cb-field-value {
+    font-size: 13px;
+    word-break: break-word;
+}
+
+.cb-office-card > .cb-maps-link {
+    margin: 0 16px 14px;
+}
+
+/* ===== TIMELINE (siniestros trámites) ===== */
+.cb-timeline {
+    margin: 0;
+    padding: 12px 14px 8px;
+    border-top: 1px dashed var(--border);
+}
+
+.cb-timeline-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.cb-timeline-title i {
+    font-size: 14px;
+}
+
+.cb-timeline-step {
+    display: flex;
+    gap: 12px;
+    padding-bottom: 14px;
+    position: relative;
+}
+
+.cb-timeline-step:last-child {
+    padding-bottom: 0;
+}
+
+/* Vertical line connecting dots */
+.cb-timeline-step:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 14px;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+}
+
+.cb-timeline-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--border);
+    border: 2px solid var(--surface);
+    flex-shrink: 0;
+    margin-top: 2px;
+    position: relative;
+    z-index: 1;
+}
+
+.cb-timeline-step--active .cb-timeline-dot {
+    background: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-100);
+}
+
+.cb-timeline-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.cb-timeline-date {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.cb-timeline-step--active .cb-timeline-date {
+    color: var(--primary-dark);
+}
+
+.cb-timeline-text {
+    font-size: 12.5px;
+    color: var(--text);
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.cb-timeline-step:not(.cb-timeline-step--active) .cb-timeline-text {
+    color: var(--text-secondary);
 }
 
 /* ===== AUTOCOMPLETE DROPDOWN ===== */
@@ -2415,6 +2768,38 @@ html, body {
     .cb-card-icon {
         width: 30px;
         height: 30px;
+        font-size: 14px;
+    }
+
+    /* Contact card responsive */
+    .cb-contact-person {
+        gap: 8px;
+    }
+
+    .cb-contact-avatar {
+        width: 34px;
+        height: 34px;
+        font-size: 18px;
+    }
+
+    .cb-contact-name {
+        font-size: 12.5px;
+    }
+
+    .cb-contact-role {
+        font-size: 10.5px;
+    }
+
+    .cb-contact-btn {
+        padding: 6px 10px;
+        font-size: 11.5px;
+    }
+
+    .cb-contact-btn--call span {
+        display: none;
+    }
+
+    .cb-contact-btn--call i {
         font-size: 14px;
     }
 }

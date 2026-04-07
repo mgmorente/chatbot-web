@@ -9,6 +9,7 @@ const APP = (() => {
     // ===== CONFIGURATION =====
     const CONFIG = {
         apiUrl: ENV.API_URL,
+        apiDuplicado: ENV.API_DUPLICADO,
         eclienteUrl: ENV.ECLIENTE_URL,
         sessionDuration: 2 * 60 * 60 * 1000, // 2 hours
         headers: {
@@ -93,14 +94,12 @@ const APP = (() => {
             { icon: 'bi-pencil-square',     text: 'Quiero solicitar un cambio en mi póliza', keywords: ['cambio', 'modificar', 'cambiar', 'actualizar', 'solicitar'] },
             { icon: 'bi-file-earmark-arrow-down', text: 'Quiero un duplicado de mi póliza', keywords: ['duplicado', 'copia', 'descargar', 'documento', 'pdf'] },
             { icon: 'bi-x-circle',          text: 'Quiero anular una póliza', keywords: ['anular', 'cancelar', 'baja', 'dar de baja'] },
-            { icon: 'bi-shield-check',      text: '¿Qué coberturas tiene mi seguro de hogar?', keywords: ['cobertura', 'cubrir', 'incluye', 'hogar', 'casa'] },
-            { icon: 'bi-car-front',         text: '¿Qué coberturas tiene mi seguro de coche?', keywords: ['cobertura', 'cubrir', 'coche', 'auto', 'vehiculo'] },
-            { icon: 'bi-heart-pulse',       text: '¿Qué coberturas tiene mi seguro de salud?', keywords: ['cobertura', 'salud', 'medico', 'sanitario'] },
         ],
 
         _el: null,         // dropdown element
         _selected: -1,     // currently highlighted index
         _visible: [],      // currently visible filtered items
+        _composing: false, // IME composition in progress (Android keyboards)
 
         init() {
             // Create dropdown container
@@ -111,12 +110,21 @@ const APP = (() => {
             const inputArea = DOM.chatInput.closest('.chat-input-area');
             inputArea.insertBefore(this._el, inputArea.firstChild);
 
+            // IME composition events (Android predictive keyboards)
+            DOM.chatInput.addEventListener('compositionstart', () => { this._composing = true; });
+            DOM.chatInput.addEventListener('compositionend', () => {
+                this._composing = false;
+                this._onInput(); // Process after composition finishes
+            });
+
             // Input events
-            DOM.chatInput.addEventListener('input', () => this._onInput());
+            DOM.chatInput.addEventListener('input', () => {
+                if (!this._composing) this._onInput();
+            });
             DOM.chatInput.addEventListener('keydown', (e) => this._onKeydown(e));
             DOM.chatInput.addEventListener('blur', () => {
-                // Small delay to allow click on item
-                setTimeout(() => this.hide(), 150);
+                // Longer delay on mobile to allow tap on item
+                setTimeout(() => this.hide(), 300);
             });
             DOM.chatInput.addEventListener('focus', () => {
                 if (DOM.chatInput.value.trim().length >= 2) this._onInput();
@@ -172,8 +180,8 @@ const APP = (() => {
                 const div = document.createElement('div');
                 div.className = 'autocomplete-item' + (i === this._selected ? ' selected' : '');
                 div.innerHTML = `<i class="bi ${item.icon}"></i><span>${item.text}</span>`;
-                div.addEventListener('mousedown', (e) => {
-                    e.preventDefault(); // prevent blur
+                div.addEventListener('pointerdown', (e) => {
+                    e.preventDefault(); // prevent blur on mobile & desktop
                     this._select(i);
                 });
                 div.addEventListener('mouseenter', () => {
@@ -255,6 +263,9 @@ const APP = (() => {
         DOM.recordingTimer = document.getElementById('recording-timer');
         DOM.btnTheme       = document.getElementById('btn-theme');
         DOM.btnFeatures    = document.getElementById('btn-features');
+        DOM.btnClearChat   = document.getElementById('btn-clear-chat');
+        DOM.btnAvatarMenu  = document.getElementById('btn-avatar-menu');
+        DOM.avatarDropdown = document.getElementById('avatar-dropdown');
         DOM.featuresModal  = document.getElementById('features-modal');
         DOM.featuresClose  = document.getElementById('features-modal-close');
     }
@@ -690,15 +701,8 @@ const APP = (() => {
                 divider.innerHTML = '<span>Hoy</span>';
                 DOM.chatBox.appendChild(divider);
 
-                // Mensaje de continuación (variado)
-                const returnGreetings = [
-                    '¡Hola de nuevo! ¿En qué puedo ayudarte?',
-                    '¡De vuelta! ¿Necesitas algo más sobre tus seguros?',
-                    '¡Hola otra vez! Aquí estoy para lo que necesites.',
-                    '¡Bienvenido de nuevo! ¿Qué puedo hacer por ti hoy?',
-                    '¡Hola! Seguimos donde lo dejamos. ¿Te ayudo con algo?',
-                ];
-                this.addMessage('bot', returnGreetings[Math.floor(Math.random() * returnGreetings.length)]);
+                // Mensaje de continuación dinámico (hora + nombre)
+                this.addMessage('bot', this._dynamicGreeting(true));
 
                 // Scroll al final
                 DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
@@ -711,6 +715,29 @@ const APP = (() => {
                 console.error('[History Error]', err);
                 // Si falla, dejar el chat con el mensaje de bienvenida por defecto
             }
+        },
+
+        _dynamicGreeting(isReturning) {
+            const h = new Date().getHours();
+            const saludo = h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches';
+            const nombre = Session.nombre ? Session.nombre.split(' ')[0] : '';
+            const nombreHtml = nombre ? `, <strong>${nombre}</strong>` : '';
+
+            if (isReturning) {
+                const frases = [
+                    `${saludo}${nombreHtml}. ¿Necesitas algo más sobre tus seguros?`,
+                    `${saludo}${nombreHtml}. ¿En qué puedo ayudarte?`,
+                    `${saludo} de nuevo${nombreHtml}. ¿Qué puedo hacer por ti?`,
+                ];
+                return frases[Math.floor(Math.random() * frases.length)];
+            }
+
+            const frases = [
+                `${saludo}${nombreHtml}. Soy <strong>PACCMAN</strong>, tu asistente virtual de seguros. ¿En qué puedo ayudarte?`,
+                `${saludo}${nombreHtml}. Soy <strong>PACCMAN</strong>, estoy aquí para ayudarte con tus seguros.`,
+                `${saludo}${nombreHtml}. Soy <strong>PACCMAN</strong>. Pregúntame lo que necesites sobre tus seguros.`,
+            ];
+            return frases[Math.floor(Math.random() * frases.length)];
         },
 
         _formatDate(date) {
@@ -745,7 +772,10 @@ const APP = (() => {
             }
 
             if (DOM.btnTheme) {
-                DOM.btnTheme.addEventListener('click', () => this.toggle());
+                DOM.btnTheme.addEventListener('click', () => {
+                    DOM.avatarDropdown?.classList.add('hidden');
+                    this.toggle();
+                });
             }
         },
 
@@ -1105,18 +1135,11 @@ const APP = (() => {
             Cache.clear();
             Session.clear();
             UI.showScreen('login');
-            // Reset chat
-            const welcomeMessages = [
-                '¡Hola! Soy <strong>PACCMAN</strong>, tu asistente virtual de seguros. ¿En qué puedo ayudarte?',
-                '¡Bienvenido! Soy <strong>PACCMAN</strong>, estoy aquí para ayudarte con tus seguros.',
-                '¡Hola! Soy <strong>PACCMAN</strong>. Pregúntame lo que necesites sobre tus seguros.',
-                '¡Hola! Soy <strong>PACCMAN</strong>, tu asistente de GRUPO PACC. ¿Qué necesitas?',
-            ];
-            const welcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+            // Reset chat con saludo genérico (sin nombre, aún no logueado)
             DOM.chatBox.innerHTML = `
                 <div class="date-divider"><span>Hoy</span></div>
                 <div class="message bot animate-in">
-                    <div class="message-content">${welcome}</div>
+                    <div class="message-content">${Chat._dynamicGreeting(false)}</div>
                 </div>`;
             DOM.quickActions.style.display = 'flex';
             Chat._quickActionsVisible = true;
@@ -1155,6 +1178,7 @@ const APP = (() => {
         // Modal funcionalidades
         if (DOM.btnFeatures && DOM.featuresModal) {
             DOM.btnFeatures.addEventListener('click', () => {
+                DOM.avatarDropdown?.classList.add('hidden');
                 DOM.featuresModal.classList.remove('hidden');
             });
 
@@ -1174,6 +1198,48 @@ const APP = (() => {
                 }
             });
         }
+
+        // Avatar dropdown menu
+        if (DOM.btnAvatarMenu && DOM.avatarDropdown) {
+            DOM.btnAvatarMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
+                DOM.avatarDropdown.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.avatar-menu-wrap')) {
+                    DOM.avatarDropdown.classList.add('hidden');
+                }
+            });
+        }
+
+        // Botón limpiar conversación (confirmación en el chat)
+        if (DOM.btnClearChat) {
+            DOM.btnClearChat.addEventListener('click', () => {
+                DOM.avatarDropdown?.classList.add('hidden');
+                Chat.addMessage('bot',
+                    '<div class="cb-clear-confirm">'
+                    + '<span>¿Borrar la conversacion actual?</span>'
+                    + '<div class="cb-clear-confirm-btns">'
+                    + '<button class="cb-clear-btn cb-clear-btn--yes" data-clear="yes">Si, borrar</button>'
+                    + '<button class="cb-clear-btn cb-clear-btn--no" data-clear="no">No</button>'
+                    + '</div></div>'
+                );
+                DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+            });
+        }
+
+        // Delegated: respuesta a confirmación de borrar chat
+        DOM.chatBox.addEventListener('click', (e) => {
+            const btn = e.target.closest('[data-clear]');
+            if (!btn) return;
+            if (btn.dataset.clear === 'yes') {
+                DOM.chatBox.innerHTML = '';
+                Chat.addMessage('bot', Chat._dynamicGreeting(false));
+            } else {
+                const confirmDiv = btn.closest('.message');
+                if (confirmDiv) confirmDiv.remove();
+            }
+        });
 
         // Delegated click: data-solicitud links (from API HTML responses)
         document.addEventListener('click', (e) => {
@@ -1233,8 +1299,8 @@ const APP = (() => {
                 selectBtn.classList.add('cb-poliza-select-btn--loading');
 
                 try {
-                    const res = await fetch(`${CONFIG.apiUrl}/duplicado-poliza?contrato=${encodeURIComponent(contrato)}`, {
-                        headers: { 'Authorization': `Bearer ${Session.token}` }
+                    const res = await fetch(`${CONFIG.apiDuplicado}?contrato=${encodeURIComponent(contrato)}`, {
+                        headers: Session.getAuthHeaders()
                     });
 
                     if (!res.ok) {
@@ -1251,21 +1317,26 @@ const APP = (() => {
                     }
 
                     const blob = await res.blob();
-                    const url = URL.createObjectURL(blob);
+                    const blobUrl = URL.createObjectURL(blob);
+
+                    // Descargar automáticamente
                     const a = document.createElement('a');
-                    a.href = url;
+                    a.href = blobUrl;
                     a.download = filename;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
 
                     selectBtn.textContent = 'Descargado';
                     selectBtn.classList.remove('cb-poliza-select-btn--loading');
                     selectBtn.classList.add('cb-poliza-select-btn--success');
 
-                    // Mensaje de confirmación en el chat
-                    Chat.addMessage('bot', `He descargado el duplicado de tu póliza ${poliza} (${desc}).`);
+                    // Mensaje con botón para abrir el PDF
+                    Chat.addMessage('bot',
+                        `He descargado el duplicado de tu póliza ${poliza} (${desc}).`
+                        + `<a href="${blobUrl}" target="_blank" class="cb-pdf-open-btn">`
+                        + `<i class="bi bi-file-earmark-pdf"></i> Abrir PDF</a>`
+                    );
 
                 } catch (err) {
                     selectBtn.textContent = 'Error';

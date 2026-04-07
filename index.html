@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="styles.css?v=15" rel="stylesheet">
+    <link href="styles.css?v=17" rel="stylesheet">
 </head>
 
 <body>
@@ -109,15 +109,26 @@
                         <span id="user-initials" class="user-initials"></span>
                         <span id="user-name" class="user-name"></span>
                     </div>
-                    <button id="btn-features" class="btn-icon" title="Ver funcionalidades">
-                        <i class="bi bi-info-circle"></i>
-                    </button>
-                    <button id="btn-theme" class="btn-theme" title="Cambiar tema">
-                        <i class="bi bi-moon-fill"></i>
-                    </button>
-                    <button id="btn-logout" class="btn-icon" title="Cerrar sesion">
-                        <i class="bi bi-box-arrow-right"></i>
-                    </button>
+                    <div class="avatar-menu-wrap">
+                        <button id="btn-avatar-menu" class="btn-avatar-menu" title="Menu">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <div id="avatar-dropdown" class="avatar-dropdown hidden">
+                            <button id="btn-features" class="avatar-dropdown-item">
+                                <i class="bi bi-info-circle"></i> Informacion
+                            </button>
+                            <button id="btn-clear-chat" class="avatar-dropdown-item">
+                                <i class="bi bi-trash3"></i> Borrar chat
+                            </button>
+                            <button id="btn-theme" class="avatar-dropdown-item">
+                                <i class="bi bi-moon-fill"></i> Cambiar tema
+                            </button>
+                            <div class="avatar-dropdown-divider"></div>
+                            <button id="btn-logout" class="avatar-dropdown-item avatar-dropdown-item--danger">
+                                <i class="bi bi-box-arrow-right"></i> Cerrar sesion
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -239,8 +250,29 @@
                         <div class="fm-card">
                             <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-pencil-square"></i></div>
                             <div>
-                                <strong>Solicitudes de cambio</strong>
-                                <p>Solicita cambios en datos personales, polizas, anulaciones o nuevas contrataciones. Tu ejecutiva lo gestiona.</p>
+                                <strong>Solicitudes con formulario inline</strong>
+                                <p>Solicita cambios, anulaciones o contrataciones con un formulario integrado en el chat. Se envia por email a tu ejecutiva o a tu oficina.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-input-cursor-text"></i></div>
+                            <div>
+                                <strong>Autocompletado predictivo</strong>
+                                <p>Mientras escribes, PACCMAN sugiere consultas frecuentes en tiempo real. Compatible con teclados predictivos de Android e iOS.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-headset"></i></div>
+                            <div>
+                                <strong>Contacto directo con tu ejecutiva</strong>
+                                <p>Ficha de tu ejecutiva de cuentas con boton de llamada directa. Si no tienes ejecutiva, muestra los datos de tu oficina.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-heart-pulse"></i></div>
+                            <div>
+                                <strong>Deteccion de intencion y empatia</strong>
+                                <p>PACCMAN analiza cada mensaje para detectar urgencia o emociones y adapta su tono y prioridad de respuesta.</p>
                             </div>
                         </div>
                     </div>
@@ -259,22 +291,22 @@
                         <div class="fm-card">
                             <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-download"></i></div>
                             <div>
-                                <strong>Duplicado de poliza</strong>
-                                <p>Descarga el PDF directamente. Si falla, se crea una solicitud automatica para que te lo envien.</p>
+                                <strong>Duplicado de poliza con visor</strong>
+                                <p>Descarga el PDF directamente y abrelo desde el chat. Si falla, se crea una solicitud automatica.</p>
                             </div>
                         </div>
                         <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-cash-stack"></i></div>
+                            <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-pie-chart"></i></div>
                             <div>
-                                <strong>Resumen de pagos</strong>
-                                <p>Cuanto pagas, estado de recibos (pendientes, cobrados, anulados) y proximos vencimientos.</p>
+                                <strong>Resumen de pagos con grafico</strong>
+                                <p>Grafico donut interactivo con desglose por ramo. Recibos pendientes, cobrados, anulados y proximos vencimientos.</p>
                             </div>
                         </div>
                         <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-person-lines-fill"></i></div>
+                            <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-person-vcard"></i></div>
                             <div>
-                                <strong>Datos personales y oficina</strong>
-                                <p>Consulta tus datos registrados y la informacion de contacto de tu oficina mas cercana.</p>
+                                <strong>Tarjetas de perfil y oficina</strong>
+                                <p>Datos personales con avatar y NIF. Oficina con direccion, telefono, email y enlace directo a Google Maps.</p>
                             </div>
                         </div>
                     </div>
@@ -286,8 +318,8 @@
                         <div class="fm-card">
                             <div class="fm-card-icon" style="background:#fee2e2;color:#ef4444"><i class="bi bi-exclamation-triangle"></i></div>
                             <div>
-                                <strong>Gestion de siniestros</strong>
-                                <p>Consulta el estado de tus siniestros, revisa tramites y abre nuevos partes directamente.</p>
+                                <strong>Siniestros con timeline visual</strong>
+                                <p>Numero de siniestro, estado y timeline cronologico de tramites con el ultimo paso destacado.</p>
                             </div>
                         </div>
                         <div class="fm-card">
@@ -318,6 +350,13 @@
                             </div>
                         </div>
                         <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-emoji-smile"></i></div>
+                            <div>
+                                <strong>Saludo dinamico personalizado</strong>
+                                <p>PACCMAN te saluda por tu nombre adaptado a la hora del dia, con frases variadas en cada visita.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
                             <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-clock-history"></i></div>
                             <div>
                                 <strong>Historial de conversacion</strong>
@@ -329,6 +368,20 @@
                             <div>
                                 <strong>Modo claro / oscuro</strong>
                                 <p>Cambia de tema con un clic. Recuerda tu preferencia y detecta la de tu dispositivo.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-geo-alt-fill"></i></div>
+                            <div>
+                                <strong>Google Maps integrado</strong>
+                                <p>Las tarjetas de oficina incluyen enlace directo a Google Maps para localizar tu oficina facilmente.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-trash3"></i></div>
+                            <div>
+                                <strong>Limpiar conversacion</strong>
+                                <p>Boton para borrar la conversacion actual y empezar de cero con un saludo personalizado.</p>
                             </div>
                         </div>
                     </div>
@@ -351,6 +404,13 @@
                                 <p>Accede directamente al portal de cliente desde el chat con tu sesion activa.</p>
                             </div>
                         </div>
+                        <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#f3f4f6;color:#374151"><i class="bi bi-arrow-repeat"></i></div>
+                            <div>
+                                <strong>Cache inteligente</strong>
+                                <p>Service Worker con estrategia hibrida: siempre actualizado en CSS/JS y cache para recursos estaticos.</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -359,7 +419,7 @@
     </div>
 
     <script src="env.js"></script>
-    <script src="chatbot.js?v=20"></script>
+    <script src="chatbot.js?v=22"></script>
 
     <!-- Service Worker & PWA Install -->
     <script>
