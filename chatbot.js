@@ -79,6 +79,155 @@ const APP = (() => {
         }
     };
 
+    // ===== AUTOCOMPLETE MODULE =====
+    const Autocomplete = {
+        _suggestions: [
+            { icon: 'bi-file-earmark-text', text: '¿Qué pólizas tengo?', keywords: ['poliza', 'polizas', 'seguro', 'seguros', 'contrato'] },
+            { icon: 'bi-cash-coin',         text: '¿Cuánto pago por mis seguros?', keywords: ['pago', 'pagar', 'cuanto', 'precio', 'prima', 'coste', 'recibo'] },
+            { icon: 'bi-calendar-check',    text: '¿Cuáles son mis próximos recibos?', keywords: ['proximo', 'recibo', 'vencimiento', 'renovar', 'renovacion'] },
+            { icon: 'bi-telephone',         text: 'Teléfonos de asistencia', keywords: ['telefono', 'llamar', 'asistencia', 'contacto', 'atencion'] },
+            { icon: 'bi-geo-alt',           text: '¿Cuál es mi oficina?', keywords: ['oficina', 'donde', 'direccion', 'ubicacion', 'sucursal'] },
+            { icon: 'bi-person-lines-fill', text: '¿Cuáles son mis datos personales?', keywords: ['datos', 'personal', 'mis datos', 'nombre', 'direccion', 'email'] },
+            { icon: 'bi-exclamation-triangle', text: '¿Qué siniestros tengo abiertos?', keywords: ['siniestro', 'accidente', 'parte', 'dano', 'averia'] },
+            { icon: 'bi-plus-circle',       text: 'Quiero dar de alta un siniestro', keywords: ['alta', 'nuevo', 'abrir', 'declarar', 'siniestro', 'parte'] },
+            { icon: 'bi-pencil-square',     text: 'Quiero solicitar un cambio en mi póliza', keywords: ['cambio', 'modificar', 'cambiar', 'actualizar', 'solicitar'] },
+            { icon: 'bi-file-earmark-arrow-down', text: 'Quiero un duplicado de mi póliza', keywords: ['duplicado', 'copia', 'descargar', 'documento', 'pdf'] },
+            { icon: 'bi-x-circle',          text: 'Quiero anular una póliza', keywords: ['anular', 'cancelar', 'baja', 'dar de baja'] },
+            { icon: 'bi-shield-check',      text: '¿Qué coberturas tiene mi seguro de hogar?', keywords: ['cobertura', 'cubrir', 'incluye', 'hogar', 'casa'] },
+            { icon: 'bi-car-front',         text: '¿Qué coberturas tiene mi seguro de coche?', keywords: ['cobertura', 'cubrir', 'coche', 'auto', 'vehiculo'] },
+            { icon: 'bi-heart-pulse',       text: '¿Qué coberturas tiene mi seguro de salud?', keywords: ['cobertura', 'salud', 'medico', 'sanitario'] },
+        ],
+
+        _el: null,         // dropdown element
+        _selected: -1,     // currently highlighted index
+        _visible: [],      // currently visible filtered items
+
+        init() {
+            // Create dropdown container
+            this._el = document.createElement('div');
+            this._el.className = 'autocomplete-dropdown hidden';
+            this._el.id = 'autocomplete-dropdown';
+            // Insert before the input wrapper (inside chat-input-area footer)
+            const inputArea = DOM.chatInput.closest('.chat-input-area');
+            inputArea.insertBefore(this._el, inputArea.firstChild);
+
+            // Input events
+            DOM.chatInput.addEventListener('input', () => this._onInput());
+            DOM.chatInput.addEventListener('keydown', (e) => this._onKeydown(e));
+            DOM.chatInput.addEventListener('blur', () => {
+                // Small delay to allow click on item
+                setTimeout(() => this.hide(), 150);
+            });
+            DOM.chatInput.addEventListener('focus', () => {
+                if (DOM.chatInput.value.trim().length >= 2) this._onInput();
+            });
+        },
+
+        _normalize(text) {
+            return text.toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[¿?¡!.,;:]/g, '')
+                .trim();
+        },
+
+        _onInput() {
+            const raw = DOM.chatInput.value.trim();
+            if (raw.length < 2) { this.hide(); return; }
+
+            const query = this._normalize(raw);
+            const words = query.split(/\s+/);
+
+            // Score each suggestion
+            const scored = this._suggestions.map(s => {
+                let score = 0;
+                const normalText = this._normalize(s.text);
+
+                // Direct text match (highest)
+                if (normalText.includes(query)) score += 10;
+
+                // Keyword matches
+                for (const word of words) {
+                    if (word.length < 2) continue;
+                    for (const kw of s.keywords) {
+                        if (kw.includes(word) || word.includes(kw)) score += 3;
+                    }
+                    if (normalText.includes(word)) score += 2;
+                }
+                return { ...s, score };
+            })
+            .filter(s => s.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+
+            if (scored.length === 0) { this.hide(); return; }
+
+            this._visible = scored;
+            this._selected = -1;
+            this._render();
+        },
+
+        _render() {
+            this._el.innerHTML = '';
+            this._visible.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item' + (i === this._selected ? ' selected' : '');
+                div.innerHTML = `<i class="bi ${item.icon}"></i><span>${item.text}</span>`;
+                div.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // prevent blur
+                    this._select(i);
+                });
+                div.addEventListener('mouseenter', () => {
+                    this._selected = i;
+                    this._highlightSelected();
+                });
+                this._el.appendChild(div);
+            });
+            this._el.classList.remove('hidden');
+        },
+
+        _highlightSelected() {
+            this._el.querySelectorAll('.autocomplete-item').forEach((el, i) => {
+                el.classList.toggle('selected', i === this._selected);
+            });
+        },
+
+        _onKeydown(e) {
+            if (this._el.classList.contains('hidden') || this._visible.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                this._selected = Math.min(this._selected + 1, this._visible.length - 1);
+                this._highlightSelected();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                this._selected = Math.max(this._selected - 1, 0);
+                this._highlightSelected();
+            } else if (e.key === 'Enter' && this._selected >= 0) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                this._select(this._selected);
+            } else if (e.key === 'Escape') {
+                this.hide();
+            }
+        },
+
+        _select(index) {
+            const item = this._visible[index];
+            if (!item) return;
+            DOM.chatInput.value = item.text;
+            this.hide();
+            DOM.chatInput.focus();
+            // Auto-send
+            Chat.send(item.text);
+        },
+
+        hide() {
+            this._el.classList.add('hidden');
+            this._selected = -1;
+            this._visible = [];
+        }
+    };
+
     // ===== DOM CACHE =====
     const DOM = {};
 
@@ -366,8 +515,14 @@ const APP = (() => {
                     // Guardar en caché para próximas consultas idénticas
                     Cache.set(text, data);
                     const msgEl = this.addMessage('bot', data.message);
-                    // Sugerencias rápidas desactivadas
-                    // this._showSuggestions(msgEl, data.function, data.message, text);
+
+                    // Indicador de urgencia/frustración detectada
+                    if (data.urgency === 'critical' || data.urgency === 'high') {
+                        msgEl.querySelector('.message-content')?.classList.add('msg-urgent');
+                    }
+                    if (data.frustration === 'high') {
+                        msgEl.querySelector('.message-content')?.classList.add('msg-empathic');
+                    }
                 } else {
                     this.addMessage('bot', data.error || 'Lo siento, no he podido procesar tu consulta. Intentalo de nuevo.');
                 }
@@ -1195,9 +1350,14 @@ const APP = (() => {
             }
         });
 
-        // Keyboard: Enter to send (without shift)
+        // Keyboard: Enter to send (without shift) — skip if autocomplete has selection
         DOM.chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
+                // If autocomplete dropdown is open with a selected item, let Autocomplete handle it
+                const dd = document.getElementById('autocomplete-dropdown');
+                if (dd && !dd.classList.contains('hidden') && dd.querySelector('.autocomplete-item.selected')) {
+                    return; // Autocomplete._onKeydown will handle this
+                }
                 e.preventDefault();
                 const text = DOM.chatInput.value.trim();
                 if (text) Chat.send(text);
@@ -1211,6 +1371,7 @@ const APP = (() => {
         Theme.init();
         bindEvents();
         Voice.init();
+        Autocomplete.init();
 
         if (Session.init()) {
             UI.showScreen('chat');

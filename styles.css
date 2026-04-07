@@ -683,6 +683,17 @@ html, body {
     border-bottom-left-radius: 4px;
 }
 
+/* Indicadores de detección de intención */
+.message.bot .message-content.msg-urgent {
+    border-left: 3px solid #ef4444;
+    background: linear-gradient(135deg, var(--bot-bubble) 95%, rgba(239,68,68,0.06) 100%);
+}
+
+.message.bot .message-content.msg-empathic {
+    border-left: 3px solid #f59e0b;
+    background: linear-gradient(135deg, var(--bot-bubble) 95%, rgba(245,158,11,0.06) 100%);
+}
+
 /* HTML content inside bot messages */
 .message.bot .message-content a {
     color: var(--primary);
@@ -923,6 +934,68 @@ html, body {
     flex-direction: column;
     gap: 8px;
     width: 100%;
+}
+
+/* ── Gráfico Donut de pagos ── */
+.cb-pagos-chart {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 12px;
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 4px;
+}
+
+.cb-donut {
+    width: 120px;
+    height: 120px;
+    flex-shrink: 0;
+}
+
+.cb-donut circle {
+    transition: opacity 0.2s;
+}
+
+.cb-donut-total {
+    font-size: 16px;
+    font-weight: 700;
+    fill: var(--text, #111827);
+}
+
+.cb-donut-label {
+    font-size: 10px;
+    fill: var(--text-secondary, #6b7280);
+}
+
+.cb-donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+}
+
+.cb-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cb-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.cb-legend-text {
+    font-size: 12px;
+    color: var(--text-secondary, #6b7280);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .cb-pago-item {
     display: flex;
@@ -1685,6 +1758,153 @@ html, body {
 }
 
 /* ---- Input area ---- */
+/* ===== CONTACT CARD (Ejecutivo de cuentas) ===== */
+.cb-contact-card {
+    margin-top: 10px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.cb-contact-person {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.cb-contact-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--primary-50);
+    color: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.cb-contact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cb-contact-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.cb-contact-role {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.cb-contact-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.cb-contact-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-full);
+    text-decoration: none;
+    transition: all var(--transition);
+    cursor: pointer;
+}
+
+.cb-contact-btn--call {
+    background: #10b981;
+    color: white;
+}
+
+.cb-contact-btn--call:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.cb-contact-btn--email {
+    background: var(--primary-50);
+    color: var(--primary);
+    border: 1px solid var(--primary-200);
+}
+
+.cb-contact-btn--email:hover {
+    background: var(--primary);
+    color: white;
+    transform: translateY(-1px);
+}
+
+/* ===== AUTOCOMPLETE DROPDOWN ===== */
+.autocomplete-dropdown {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin: 0 0 6px;
+    padding: 4px;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.08);
+    animation: autocompleteIn 0.15s ease-out;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.autocomplete-dropdown.hidden {
+    display: none;
+}
+
+.autocomplete-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 13.5px;
+    color: var(--text);
+    transition: background 0.12s;
+}
+
+.autocomplete-item i {
+    font-size: 16px;
+    color: var(--primary);
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+}
+
+.autocomplete-item span {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background: var(--primary-50);
+}
+
+.autocomplete-item.selected {
+    color: var(--primary);
+    font-weight: 500;
+}
+
+@keyframes autocompleteIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
 .chat-input-area {
     padding: 10px 20px 8px;
     background: var(--surface);
