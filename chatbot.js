@@ -480,6 +480,7 @@ const APP = (() => {
 
             this.addMessage('user', this._escapeHtml(text));
             DOM.chatInput.value = '';
+            Autocomplete.hide();
             DOM.chatInput.focus();
 
             // Comprobar caché: respuesta instantánea si ya la tenemos
@@ -1348,6 +1349,63 @@ const APP = (() => {
                 card.querySelector('.cb-solicitud-actions').remove();
                 Chat.addMessage('bot', 'De acuerdo, la solicitud ha sido cancelada. Si necesitas algo más, estoy aquí.');
             }
+        });
+
+        // Formulario de solicitud inline (tarjeta de contacto)
+        DOM.chatBox.addEventListener('input', (e) => {
+            const input = e.target.closest('.cb-contact-form-input');
+            if (!input) return;
+            const sendBtn = input.closest('.cb-contact-form-row').querySelector('.cb-contact-form-send');
+            if (sendBtn) sendBtn.disabled = input.value.trim().length < 3;
+        });
+
+        DOM.chatBox.addEventListener('click', async (e) => {
+            const sendBtn = e.target.closest('.cb-contact-form-send');
+            if (!sendBtn || sendBtn.disabled) return;
+
+            const row = sendBtn.closest('.cb-contact-form-row');
+            const input = row.querySelector('.cb-contact-form-input');
+            const form = sendBtn.closest('.cb-contact-form');
+            const asunto = input.value.trim();
+            if (!asunto) return;
+
+            // Deshabilitar
+            sendBtn.disabled = true;
+            input.disabled = true;
+            sendBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+            try {
+                const res = await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
+                    method: 'POST',
+                    headers: Session.getAuthHeaders(),
+                    body: JSON.stringify({ tipo: 'otro', descripcion: `Solicitud del cliente: ${asunto}` })
+                });
+
+                if (res.ok) {
+                    form.innerHTML = '<div class="cb-contact-form-sent"><i class="bi bi-check-circle-fill"></i> Solicitud enviada. Tu ejecutiva recibirá un email con tu consulta.</div>';
+                    Chat.addMessage('bot', 'He registrado tu solicitud. Tu ejecutiva de cuentas se pondrá en contacto contigo lo antes posible.');
+                } else {
+                    sendBtn.disabled = false;
+                    input.disabled = false;
+                    sendBtn.innerHTML = '<i class="bi bi-send-fill"></i>';
+                    UI.toast('No se pudo enviar la solicitud. Inténtalo de nuevo.', 'error');
+                }
+            } catch (err) {
+                console.error('[Contact Form Error]', err);
+                sendBtn.disabled = false;
+                input.disabled = false;
+                sendBtn.innerHTML = '<i class="bi bi-send-fill"></i>';
+                UI.toast('Error de conexión', 'error');
+            }
+        });
+
+        // Enter key en el formulario de contacto
+        DOM.chatBox.addEventListener('keydown', (e) => {
+            const input = e.target.closest('.cb-contact-form-input');
+            if (!input || e.key !== 'Enter') return;
+            e.preventDefault();
+            const sendBtn = input.closest('.cb-contact-form-row').querySelector('.cb-contact-form-send');
+            if (sendBtn && !sendBtn.disabled) sendBtn.click();
         });
 
         // Keyboard: Enter to send (without shift) — skip if autocomplete has selection
