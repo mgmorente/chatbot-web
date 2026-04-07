@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sin conexion - PACCMAN</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #1a56db 0%, #1e3a8a 50%, #312e81 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 24px;
+            text-align: center;
+        }
+        .offline-container {
+            max-width: 400px;
+        }
+        .offline-icon {
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 28px;
+            font-size: 44px;
+        }
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+        p {
+            font-size: 15px;
+            opacity: 0.8;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        .btn-retry {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: white;
+            color: #1a56db;
+            border: none;
+            border-radius: 12px;
+            padding: 14px 32px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-retry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .btn-retry:active {
+            transform: translateY(0);
+        }
+        .brand {
+            margin-top: 48px;
+            opacity: 0.4;
+            font-size: 13px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">&#x1F4E1;</div>
+        <h1>Sin conexion</h1>
+        <p>No se puede conectar con el servidor de PACCMAN. Comprueba tu conexion a internet e intentalo de nuevo.</p>
+        <button class="btn-retry" onclick="window.location.reload()">
+            &#x21BB; Reintentar
+        </button>
+        <div class="brand">GRUPO PACC</div>
+    </div>
+</body>
+</html>

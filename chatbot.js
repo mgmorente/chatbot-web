@@ -1,210 +1,1193 @@
-const apiUrl = `${ENV.API_URL}`;
-const eclienteUrl = `${ENV.ECLIENTE_URL}`;
-const SESSION_DURATION = 2 * 60 * 60 * 1000; // 2 horas en ms
+/**
+ * GRUPO PACC - Chatbot Client
+ * Modular architecture with improved error handling
+ */
 
-document.addEventListener('DOMContentLoaded', () => {
-    const userModalEl = document.getElementById('userModal');
-    const userModal = new bootstrap.Modal(userModalEl, {
-        backdrop: 'static',
-        keyboard: false
-    });
+const APP = (() => {
+    'use strict';
 
-    // --- Gestión Token y sesión ---
-    const tokenData = getStoredToken();
-
-    if (!tokenData || !tokenData.token || tokenData.expiry < Date.now()) {
-        // Token no existe o expirado
-        clearStoredToken();
-        userModal.show();
-    }
-
-    // --- Funciones auxiliares de token ---
-    function getStoredToken() {
-        try {
-            const token = localStorage.getItem('userToken');
-            const expiry = parseInt(localStorage.getItem('userTokenExpiry'), 10);
-            if (!token || !expiry) return null;
-            return { token, expiry };
-        } catch {
-            return null;
+    // ===== CONFIGURATION =====
+    const CONFIG = {
+        apiUrl: ENV.API_URL,
+        eclienteUrl: ENV.ECLIENTE_URL,
+        sessionDuration: 2 * 60 * 60 * 1000, // 2 hours
+        headers: {
+            'Content-Type': 'application/json',
+            'Empresa': 'pacc',
+            'Device': 'web'
         }
+    };
+
+    // ===== RESPONSE CACHE =====
+    const Cache = {
+        _store: new Map(),
+        _maxSize: 50,          // máximo de entradas
+        _ttl: 5 * 60 * 1000,  // 5 minutos de validez
+
+        /**
+         * Genera una clave normalizada a partir del texto de consulta.
+         * Elimina espacios extra, signos y pasa a minúsculas.
+         */
+        _key(text) {
+            return text.trim().toLowerCase()
+                .replace(/[¿?¡!.,;:]/g, '')
+                .replace(/\s+/g, ' ');
+        },
+
+        /**
+         * Busca en caché. Devuelve el objeto {message, function} o null.
+         */
+        get(text) {
+            const key = this._key(text);
+            const entry = this._store.get(key);
+            if (!entry) return null;
+
+            // Comprobar TTL
+            if (Date.now() - entry.timestamp > this._ttl) {
+                this._store.delete(key);
+                return null;
+            }
+
+            return entry.data;
+        },
+
+        /**
+         * Guarda una respuesta en caché.
+         * Solo cachea respuestas de consultas de datos (no solicitudes ni errores).
+         */
+        set(text, data) {
+            // No cachear errores ni respuestas vacías
+            if (!data || !data.message || data.error) return;
+
+            const key = this._key(text);
+
+            // Si el caché está lleno, eliminar la entrada más antigua
+            if (this._store.size >= this._maxSize) {
+                const oldestKey = this._store.keys().next().value;
+                this._store.delete(oldestKey);
+            }
+
+            this._store.set(key, {
+                data: { message: data.message, function: data.function },
+                timestamp: Date.now()
+            });
+        },
+
+        /** Limpia todo el caché (al hacer logout, por ejemplo) */
+        clear() {
+            this._store.clear();
+        }
+    };
+
+    // ===== DOM CACHE =====
+    const DOM = {};
+
+    function cacheDom() {
+        DOM.loginScreen    = document.getElementById('login-screen');
+        DOM.chatScreen     = document.getElementById('chat-screen');
+        DOM.loginForm      = document.getElementById('user-data-form');
+        DOM.nifInput       = document.getElementById('nif');
+        DOM.movilInput     = document.getElementById('movil');
+        DOM.submitBtn      = document.getElementById('submitButton');
+        DOM.buttonText     = document.getElementById('buttonText');
+        DOM.spinner        = document.getElementById('spinner');
+        DOM.apiErrors      = document.getElementById('api-errors');
+        DOM.chatBox        = document.getElementById('chat-box');
+        DOM.chatForm       = document.getElementById('chat-form');
+        DOM.chatInput      = document.getElementById('chat-message');
+        DOM.quickActions    = document.getElementById('quick-actions');
+        DOM.logoutBtn      = document.getElementById('btn-logout');
+        DOM.toastContainer = document.getElementById('toast-container');
+        DOM.userBadge      = document.getElementById('user-badge');
+        DOM.userInitials   = document.getElementById('user-initials');
+        DOM.userName       = document.getElementById('user-name');
+        DOM.btnMic         = document.getElementById('btn-mic');
+        DOM.recordingIndicator = document.getElementById('recording-indicator');
+        DOM.recordingTimer = document.getElementById('recording-timer');
+        DOM.btnTheme       = document.getElementById('btn-theme');
+        DOM.btnFeatures    = document.getElementById('btn-features');
+        DOM.featuresModal  = document.getElementById('features-modal');
+        DOM.featuresClose  = document.getElementById('features-modal-close');
     }
 
-    function storeToken(token) {
-        localStorage.setItem('userToken', token);
-        localStorage.setItem('userTokenExpiry', (Date.now() + SESSION_DURATION).toString());
-    }
+    // ===== SESSION MODULE =====
+    const Session = {
+        _token: null,
+        _nombre: null,
 
-    function clearStoredToken() {
-        localStorage.removeItem('userToken');
-        localStorage.removeItem('userTokenExpiry');
-    }
+        get token() {
+            return this._token;
+        },
 
-    // --- Variables para token en sesión ---
-    let userToken = tokenData?.token || '';
+        get nombre() {
+            return this._nombre;
+        },
 
-    // --- Login ---
-    document.getElementById('user-data-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        clearApiError();
+        init() {
+            try {
+                const token  = localStorage.getItem('userToken');
+                const expiry = parseInt(localStorage.getItem('userTokenExpiry'), 10);
+                const nombre = localStorage.getItem('userName');
+                if (token && expiry && expiry > Date.now()) {
+                    this._token = token;
+                    this._nombre = nombre;
+                    return true;
+                }
+            } catch { /* private browsing */ }
+            this.clear();
+            return false;
+        },
 
-        const submitButton = document.getElementById('submitButton');
-        const spinner = document.getElementById('spinner');
-        const buttonText = document.getElementById('buttonText');
+        save(token, nombre) {
+            this._token = token;
+            this._nombre = nombre || null;
+            try {
+                localStorage.setItem('userToken', token);
+                localStorage.setItem('userTokenExpiry', (Date.now() + CONFIG.sessionDuration).toString());
+                if (nombre) localStorage.setItem('userName', nombre);
+            } catch { /* private browsing */ }
+        },
 
-        spinner.classList.remove('d-none');
-        buttonText.textContent = "Procesando...";
-        submitButton.disabled = true;
+        clear() {
+            this._token = null;
+            this._nombre = null;
+            try {
+                localStorage.removeItem('userToken');
+                localStorage.removeItem('userTokenExpiry');
+                localStorage.removeItem('userName');
+            } catch { /* ignore */ }
+        },
 
-        const nif = document.getElementById('nif').value.trim().toUpperCase();
-        const movil = document.getElementById('movil').value.trim();
+        getAuthHeaders() {
+            return {
+                ...CONFIG.headers,
+                'Authorization': `Bearer ${this._token}`
+            };
+        }
+    };
 
-        try {
-            const response = await fetch(`${apiUrl}/get-token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Empresa': 'pacc',
-                    'Device': 'web'
-                },
-                body: JSON.stringify({ nif, movil }),
+    // ===== UI MODULE =====
+    const UI = {
+        showScreen(name) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            const target = name === 'login' ? DOM.loginScreen : DOM.chatScreen;
+            target.classList.add('active');
+            if (name === 'chat') {
+                DOM.chatInput.focus();
+            }
+        },
+
+        setLoginLoading(loading) {
+            DOM.spinner.classList.toggle('hidden', !loading);
+            DOM.buttonText.textContent = loading ? 'Verificando...' : 'Entrar';
+            DOM.submitBtn.disabled = loading;
+        },
+
+        showLoginError(msg) {
+            DOM.apiErrors.textContent = msg;
+            DOM.apiErrors.classList.remove('hidden');
+        },
+
+        clearLoginError() {
+            DOM.apiErrors.classList.add('hidden');
+        },
+
+        showUserBadge(nombre) {
+            if (!nombre) {
+                DOM.userBadge.classList.add('hidden');
+                return;
+            }
+            // "GARCIA LOPEZ, JUAN PEDRO" -> display "Juan G.L."
+            // "JUAN PEDRO GARCIA LOPEZ" -> display "Juan P.G."
+            const parts = nombre.trim().toUpperCase().split(/[\s,]+/).filter(Boolean);
+            let displayName = nombre;
+            let initials = '';
+
+            if (nombre.includes(',')) {
+                // Formato: "APELLIDO1 APELLIDO2, NOMBRE NOMBRE2"
+                const [apellidos, nombres] = nombre.split(',').map(s => s.trim());
+                const aParts = apellidos.split(/\s+/);
+                const nParts = nombres.split(/\s+/);
+                const firstName = nParts[0] || '';
+                displayName = this._capitalize(firstName) + ' ' + aParts.map(a => a[0] + '.').join('');
+                initials = (firstName[0] || '') + (aParts[0]?.[0] || '');
+            } else {
+                // Formato: "NOMBRE APELLIDO1 APELLIDO2"
+                if (parts.length >= 2) {
+                    const firstName = parts[0];
+                    const rest = parts.slice(1);
+                    displayName = this._capitalize(firstName) + ' ' + rest.map(a => a[0] + '.').join('');
+                    initials = firstName[0] + (rest[0]?.[0] || '');
+                } else {
+                    displayName = this._capitalize(parts[0] || '');
+                    initials = (parts[0]?.[0] || '').toUpperCase();
+                }
+            }
+
+            DOM.userInitials.textContent = initials.toUpperCase();
+            DOM.userName.textContent = displayName;
+            DOM.userBadge.classList.remove('hidden');
+        },
+
+        _capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+        },
+
+        toast(message, type = 'error') {
+            const icons = { error: 'bi-wifi-off', success: 'bi-check-circle', warning: 'bi-exclamation-triangle' };
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `<i class="bi ${icons[type] || icons.error}"></i><span>${message}</span>`;
+            DOM.toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(40px)';
+                toast.style.transition = '0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+    };
+
+    // ===== CHAT MODULE =====
+    const Chat = {
+        _quickActionsVisible: true,
+
+        _formatMarkdown(text) {
+            // Si ya contiene HTML de nuestras cards, no tocar
+            if (text.includes('cb-data-') || text.includes('cb-results') || text.includes('cb-pagos-') || text.includes('cb-telefonos') || text.includes('cb-solicitud') || text.includes('cb-poliza-selector') || text.includes('cb-action-')) {
+                // Solo parsear la parte de texto fuera de las tags HTML
+                return text.replace(/^([^<]+)/, (match) => {
+                    return match
+                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                        .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+                        .replace(/\n/g, '<br>');
+                });
+            }
+            // Texto plano: convertir markdown básico
+            return text
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+        },
+
+        addMessage(type, html) {
+            const wrapper = document.createElement('div');
+            wrapper.className = `message ${type}`;
+
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.innerHTML = type === 'bot' ? this._formatMarkdown(html) : html;
+
+            // Botón de voz en mensajes del bot (solo si tiene texto útil)
+            if (type === 'bot' && window.speechSynthesis) {
+                const textContent = content.textContent.trim();
+                if (textContent.length > 5) {
+                    const ttsBtn = document.createElement('button');
+                    ttsBtn.className = 'btn-tts';
+                    ttsBtn.title = 'Escuchar';
+                    ttsBtn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
+                    ttsBtn.addEventListener('click', () => TTS.speak(textContent, ttsBtn));
+                    content.appendChild(ttsBtn);
+                }
+            }
+
+            wrapper.appendChild(content);
+            DOM.chatBox.appendChild(wrapper);
+            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+
+            // Hide quick actions after first user message
+            if (type === 'user' && this._quickActionsVisible) {
+                this._quickActionsVisible = false;
+                DOM.quickActions.style.display = 'none';
+            }
+
+            return wrapper;
+        },
+
+        showThinking() {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message bot thinking';
+            wrapper.innerHTML = `
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <div class="typing-dots">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                        <span class="typing-text">PACCMAN est\u00e1 escribiendo</span>
+                    </div>
+                </div>`;
+            DOM.chatBox.appendChild(wrapper);
+            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+        },
+
+        removeThinking() {
+            DOM.chatBox.querySelectorAll('.thinking').forEach(el => el.remove());
+        },
+
+        async send(text) {
+            if (!text.trim()) return;
+
+            // Remove previous suggestions
+            DOM.chatBox.querySelectorAll('.cb-suggestions').forEach(el => el.remove());
+            this.addMessage('user', this._escapeHtml(text));
+            DOM.chatInput.value = '';
+            DOM.chatInput.focus();
+
+            // Comprobar caché: respuesta instantánea si ya la tenemos
+            const cached = Cache.get(text);
+            if (cached) {
+                const msgEl = this.addMessage('bot', cached.message);
+                this._showSuggestions(msgEl, cached.function, cached.message, text);
+                return;
+            }
+
+            this.showThinking();
+
+            try {
+                const res = await fetch(`${CONFIG.apiUrl}/consulta`, {
+                    method: 'POST',
+                    headers: Session.getAuthHeaders(),
+                    body: JSON.stringify({ consulta: text })
+                });
+
+                this.removeThinking();
+
+                if (res.status === 401) {
+                    Session.clear();
+                    UI.toast('Tu sesion ha expirado. Inicia sesion de nuevo.', 'warning');
+                    setTimeout(() => UI.showScreen('login'), 1500);
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (res.ok && data.message) {
+                    // Guardar en caché para próximas consultas idénticas
+                    Cache.set(text, data);
+                    const msgEl = this.addMessage('bot', data.message);
+                    this._showSuggestions(msgEl, data.function, data.message, text);
+                } else {
+                    this.addMessage('bot', data.error || 'Lo siento, no he podido procesar tu consulta. Intentalo de nuevo.');
+                }
+            } catch (err) {
+                this.removeThinking();
+                this.addMessage('bot', '<i class="bi bi-wifi-off"></i> No se pudo conectar con el servidor. Comprueba tu conexion.');
+                UI.toast('Error de conexion con el servidor', 'error');
+                console.error('[Chat Error]', err);
+            }
+        },
+
+        _getSuggestions(fn, botText, userText) {
+            const fnName = fn?.name || null;
+
+            // Si no hay función, intentar detectar contexto por texto
+            if (!fnName && (botText || userText)) {
+                const combined = ((userText || '') + ' ' + (botText || '')).toLowerCase();
+                const siniestroKw = ['siniestro', 'accidente', 'grúa', 'grua', 'avería', 'averia', 'robo', 'incendio', 'inundación', 'inundacion', 'tirado', 'choque', 'golpe'];
+                const isSiniestro = siniestroKw.some(kw => combined.includes(kw));
+                if (isSiniestro) {
+                    return [
+                        { icon: 'bi-telephone', label: 'Telefonos cias', msg: 'Teléfonos de asistencia' },
+                        { icon: 'bi-plus-circle', label: 'Abrir siniestro', msg: 'Quiero abrir un siniestro' },
+                        { icon: 'bi-exclamation-triangle', label: 'Mis siniestros', msg: '¿Qué siniestros tengo?' }
+                    ];
+                }
+            }
+
+            const map = {
+                'consulta_datos':        [
+                    { icon: 'bi-cash-coin', label: 'Cuanto pago', msg: '¿Cuánto pago por mis seguros?' },
+                    { icon: 'bi-telephone', label: 'Telefonos', msg: 'Teléfonos de asistencia' },
+                    { icon: 'bi-pencil-square', label: 'Solicitar cambio', msg: 'Quiero solicitar un cambio en mis datos' }
+                ],
+                'resumen_pagos':         [
+                    { icon: 'bi-calendar-check', label: 'Proximos recibos', msg: '¿Cuáles son mis próximos recibos?' },
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-pencil-square', label: 'Solicitar cambio', msg: 'Quiero solicitar un cambio en mi póliza' }
+                ],
+                'telefonos_companias':   [
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-exclamation-triangle', label: 'Mis siniestros', msg: '¿Qué siniestros tengo?' },
+                    { icon: 'bi-geo-alt', label: 'Mi oficina', msg: '¿Cuál es mi oficina?' }
+                ],
+                'datos_contacto_oficina':[
+                    { icon: 'bi-telephone', label: 'Telefonos', msg: 'Teléfonos de asistencia' },
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-person-lines-fill', label: 'Mis datos', msg: '¿Cuáles son mis datos personales?' }
+                ],
+                'datos_cliente':         [
+                    { icon: 'bi-pencil-square', label: 'Cambiar datos', msg: 'Quiero modificar mis datos personales' },
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-cash-coin', label: 'Cuanto pago', msg: '¿Cuánto pago por mis seguros?' }
+                ],
+                'solicitar_cambio':      [
+                    { icon: 'bi-person-lines-fill', label: 'Mis datos', msg: '¿Cuáles son mis datos personales?' },
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-geo-alt', label: 'Mi oficina', msg: '¿Cuál es mi oficina?' }
+                ],
+                'ayuda_siniestro':       [
+                    { icon: 'bi-telephone', label: 'Telefonos cias', msg: 'Teléfonos de asistencia' },
+                    { icon: 'bi-plus-circle', label: 'Abrir siniestro', msg: 'Quiero abrir un siniestro' },
+                    { icon: 'bi-exclamation-triangle', label: 'Mis siniestros', msg: '¿Qué siniestros tengo?' }
+                ],
+                'nuevo_siniestro':       [
+                    { icon: 'bi-telephone', label: 'Telefonos cias', msg: 'Teléfonos de asistencia' },
+                    { icon: 'bi-exclamation-triangle', label: 'Mis siniestros', msg: '¿Qué siniestros tengo?' },
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' }
+                ],
+                'duplicado_poliza':      [
+                    { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                    { icon: 'bi-cash-coin', label: 'Cuanto pago', msg: '¿Cuánto pago por mis seguros?' },
+                    { icon: 'bi-geo-alt', label: 'Mi oficina', msg: '¿Cuál es mi oficina?' }
+                ]
+            };
+            // Default suggestions when no function was called (conversational/conceptual)
+            const defaults = [
+                { icon: 'bi-file-earmark-text', label: 'Mis polizas', msg: '¿Qué pólizas tengo?' },
+                { icon: 'bi-cash-coin', label: 'Cuanto pago', msg: '¿Cuánto pago por mis seguros?' },
+                { icon: 'bi-telephone', label: 'Telefonos', msg: 'Teléfonos de asistencia' }
+            ];
+            return map[fnName] || defaults;
+        },
+
+        _showSuggestions(messageEl, fn, botText, userText) {
+            // Remove previous suggestions
+            DOM.chatBox.querySelectorAll('.cb-suggestions').forEach(el => el.remove());
+
+            const suggestions = this._getSuggestions(fn, botText, userText);
+            const container = document.createElement('div');
+            container.className = 'cb-suggestions';
+
+            suggestions.forEach(s => {
+                const btn = document.createElement('button');
+                btn.className = 'cb-suggestion-btn';
+                btn.innerHTML = `<i class="bi ${s.icon}"></i> ${s.label}`;
+                btn.addEventListener('click', () => {
+                    container.remove();
+                    Chat.send(s.msg);
+                });
+                container.appendChild(btn);
             });
 
-            const data = await response.json();
+            DOM.chatBox.appendChild(container);
+            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+        },
 
-            if (response.ok && data.token) {
-                userToken = data.token;
-                storeToken(userToken);
-                userModal.hide();
-            } else {
-                showApiError(data.error || 'Error al autenticar');
+        _escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        },
+
+        /** Carga el historial de conversación al iniciar sesión */
+        async loadHistory() {
+            try {
+                const res = await fetch(`${CONFIG.apiUrl}/history?limit=30`, {
+                    headers: {
+                        'Authorization': `Bearer ${Session.token}`,
+                        'Empresa': CONFIG.headers.Empresa,
+                        'Device': CONFIG.headers.Device
+                    }
+                });
+
+                if (!res.ok) return;
+                const data = await res.json();
+                if (!data.history || data.history.length === 0) return;
+
+                // Limpiar el chat (quitar mensaje de bienvenida por defecto)
+                DOM.chatBox.innerHTML = '';
+
+                let lastDate = null;
+
+                data.history.forEach(msg => {
+                    // Separador de fecha
+                    const msgDate = new Date(msg.created_at);
+                    const dateStr = this._formatDate(msgDate);
+
+                    if (dateStr !== lastDate) {
+                        const divider = document.createElement('div');
+                        divider.className = 'date-divider';
+                        divider.innerHTML = `<span>${dateStr}</span>`;
+                        DOM.chatBox.appendChild(divider);
+                        lastDate = dateStr;
+                    }
+
+                    const type = msg.role === 'user' ? 'user' : 'bot';
+                    const content = type === 'user' ? this._escapeHtml(msg.message) : msg.message;
+
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `message ${type} history-msg`;
+
+                    const contentDiv = document.createElement('div');
+                    contentDiv.className = 'message-content';
+                    contentDiv.innerHTML = type === 'bot' ? this._formatMarkdown(content) : content;
+
+                    wrapper.appendChild(contentDiv);
+                    DOM.chatBox.appendChild(wrapper);
+                });
+
+                // Separador "Hoy" después del historial
+                const divider = document.createElement('div');
+                divider.className = 'date-divider';
+                divider.innerHTML = '<span>Hoy</span>';
+                DOM.chatBox.appendChild(divider);
+
+                // Mensaje de continuación (variado)
+                const returnGreetings = [
+                    '¡Hola de nuevo! ¿En qué puedo ayudarte?',
+                    '¡De vuelta! ¿Necesitas algo más sobre tus seguros?',
+                    '¡Hola otra vez! Aquí estoy para lo que necesites.',
+                    '¡Bienvenido de nuevo! ¿Qué puedo hacer por ti hoy?',
+                    '¡Hola! Seguimos donde lo dejamos. ¿Te ayudo con algo?',
+                ];
+                this.addMessage('bot', returnGreetings[Math.floor(Math.random() * returnGreetings.length)]);
+
+                // Scroll al final
+                DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+
+                // Ocultar quick actions si ya hay historial
+                this._quickActionsVisible = false;
+                DOM.quickActions.style.display = 'none';
+
+            } catch (err) {
+                console.error('[History Error]', err);
+                // Si falla, dejar el chat con el mensaje de bienvenida por defecto
             }
-        } catch (err) {
-            showApiError('Error de conexión');
-            console.error(err);
-        } finally {
-            spinner.classList.add('d-none');
-            buttonText.textContent = "Entrar";
-            submitButton.disabled = false;
-        }
-    });
+        },
 
-    // --- Enviar mensaje de chat ---
-    document.getElementById('chat-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
+        _formatDate(date) {
+            const today = new Date();
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
 
-        const messageInput = document.getElementById('chat-message');
-        const message = messageInput.value.trim();
-        if (!message) return;
+            const isToday = date.toDateString() === today.toDateString();
+            const isYesterday = date.toDateString() === yesterday.toDateString();
 
-        addMessageToChat('user', message);
-        addMessageToChatThinking();
+            if (isToday) return 'Hoy';
+            if (isYesterday) return 'Ayer';
 
-        try {
-            const response = await fetch(`${apiUrl}/consulta`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${userToken}`,
-                    'Empresa': 'pacc',
-                    'Device': 'web'
-                },
-                body: JSON.stringify({ consulta: message }),
+            return date.toLocaleDateString('es-ES', {
+                day: 'numeric',
+                month: 'long',
+                year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
             });
-
-            const data = await response.json();
-            removeThinkingMessage();
-
-            if (response.ok && data.message) {
-                addMessageToChat('bot', data.message);
-            } else {
-                addMessageToChat('bot', data.error || 'Error en la respuesta del servidor');
-            }
-        } catch (err) {
-            removeThinkingMessage();
-            addMessageToChat('bot', 'Error de conexión con el servidor');
-            console.error(err);
-        } finally {
-            messageInput.value = '';
         }
-    });
+    };
 
-    // --- Eventos para botones "order" ---
-    document.querySelectorAll('button.order').forEach(button => {
-        button.addEventListener('click', () => {
-            submitChatMessage(button.textContent);
+    // ===== THEME MODULE =====
+    const Theme = {
+        _key: 'chatbot-theme',
+
+        init() {
+            const saved = localStorage.getItem(this._key);
+            if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                this._apply('dark');
+            } else {
+                this._apply('light');
+            }
+
+            if (DOM.btnTheme) {
+                DOM.btnTheme.addEventListener('click', () => this.toggle());
+            }
+        },
+
+        toggle() {
+            const current = document.documentElement.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            this._apply(next);
+            localStorage.setItem(this._key, next);
+        },
+
+        _apply(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const iconClass = theme === 'dark' ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+            const title = theme === 'dark' ? 'Modo claro' : 'Modo oscuro';
+
+            // Actualizar todos los botones de tema
+            document.querySelectorAll('#btn-theme, #btn-theme-login').forEach(btn => {
+                const icon = btn.querySelector('i');
+                if (icon) icon.className = iconClass;
+                btn.title = title;
+            });
+        }
+    };
+
+    // ===== TTS MODULE (Text-to-Speech) =====
+    const TTS = {
+        _speaking: false,
+        _currentBtn: null,
+
+        speak(text, btn) {
+            // Si ya está hablando este mensaje, parar
+            if (this._speaking && this._currentBtn === btn) {
+                this.stop();
+                return;
+            }
+
+            // Si está hablando otro, parar primero
+            if (this._speaking) {
+                this.stop();
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+
+            // Buscar voz española
+            const voices = speechSynthesis.getVoices();
+            const esVoice = voices.find(v => v.lang.startsWith('es') && v.localService)
+                         || voices.find(v => v.lang.startsWith('es'));
+            if (esVoice) utterance.voice = esVoice;
+
+            utterance.onstart = () => {
+                this._speaking = true;
+                this._currentBtn = btn;
+                btn.classList.add('speaking');
+                btn.innerHTML = '<i class="bi bi-stop-fill"></i>';
+                btn.title = 'Parar';
+            };
+
+            utterance.onend = () => this._reset(btn);
+            utterance.onerror = () => this._reset(btn);
+
+            speechSynthesis.speak(utterance);
+        },
+
+        stop() {
+            speechSynthesis.cancel();
+            if (this._currentBtn) {
+                this._reset(this._currentBtn);
+            }
+        },
+
+        _reset(btn) {
+            this._speaking = false;
+            this._currentBtn = null;
+            if (btn) {
+                btn.classList.remove('speaking');
+                btn.innerHTML = '<i class="bi bi-volume-up-fill"></i>';
+                btn.title = 'Escuchar';
+            }
+        }
+    };
+
+    // ===== VOICE MODULE (click to start / click to stop) =====
+    const Voice = {
+        _mediaRecorder: null,
+        _stream: null,          // stream persistente (se reutiliza)
+        _chunks: [],
+        _isRecording: false,
+        _isBusy: false,
+        _timerInterval: null,
+        _startTime: 0,
+        _streamReady: false,
+
+        init() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                if (DOM.btnMic) DOM.btnMic.style.display = 'none';
+                return;
+            }
+            this._bindEvents();
+        },
+
+        _bindEvents() {
+            const btn = DOM.btnMic;
+            if (!btn) return;
+
+            // Pre-calentar el micrófono al pasar el ratón por encima
+            btn.addEventListener('mouseenter', () => this._warmUp(), { once: true });
+
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (this._isBusy) return;
+                if (this._isRecording) {
+                    this._stop();
+                } else {
+                    this._start();
+                }
+            });
+        },
+
+        /** Adquiere el stream del micrófono una sola vez (silencioso) */
+        async _warmUp() {
+            if (this._stream) return;
+            try {
+                this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                this._streamReady = true;
+            } catch (err) {
+                // Si rechaza permisos aquí, se reintentará al pulsar
+                console.log('[Voice] Warm-up: permisos pendientes');
+            }
+        },
+
+        /** Asegura que hay stream listo, lo adquiere si no existe */
+        async _ensureStream() {
+            if (this._stream) {
+                // Verificar que las pistas siguen activas
+                const tracks = this._stream.getAudioTracks();
+                if (tracks.length > 0 && tracks[0].readyState === 'live') {
+                    return;
+                }
+                // Stream muerto, renovar
+                this._stream = null;
+            }
+            this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            this._streamReady = true;
+        },
+
+        async _start() {
+            this._isBusy = true;
+            try {
+                await this._ensureStream();
+
+                this._chunks = [];
+                this._mediaRecorder = new MediaRecorder(this._stream, { mimeType: this._getSupportedMime() });
+
+                this._mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) this._chunks.push(e.data);
+                };
+
+                this._mediaRecorder.onstop = () => {
+                    // NO cerramos el stream — lo reutilizamos
+                    if (this._chunks.length === 0) {
+                        this._updateUI(false);
+                        return;
+                    }
+                    const blob = new Blob(this._chunks, { type: this._mediaRecorder.mimeType });
+                    this._sendAudio(blob);
+                };
+
+                this._mediaRecorder.start();
+                this._isRecording = true;
+                this._startTime = Date.now();
+                this._updateUI(true);
+                this._startTimer();
+
+            } catch (err) {
+                console.error('[Voice] Mic error:', err);
+                UI.toast('No se pudo acceder al micrófono. Revisa los permisos.', 'error');
+            } finally {
+                this._isBusy = false;
+            }
+        },
+
+        _stop() {
+            if (!this._isRecording || !this._mediaRecorder) return;
+            this._isRecording = false;
+            this._mediaRecorder.stop();
+            this._stopTimer();
+            this._updateUI(false);
+        },
+
+        /** Libera el stream (llamar al hacer logout) */
+        release() {
+            if (this._stream) {
+                this._stream.getTracks().forEach(t => t.stop());
+                this._stream = null;
+                this._streamReady = false;
+            }
+        },
+
+        async _sendAudio(blob) {
+            const audioUrl = URL.createObjectURL(blob);
+            Chat.addMessage('user', `<div class="message-audio"><i class="bi bi-mic-fill"></i><audio controls src="${audioUrl}"></audio></div>`);
+            Chat.showThinking();
+
+            try {
+                const formData = new FormData();
+                const ext = blob.type.includes('webm') ? 'webm' : blob.type.includes('mp4') ? 'mp4' : 'ogg';
+                formData.append('audio', blob, `audio.${ext}`);
+
+                const res = await fetch(`${CONFIG.apiUrl}/transcribe`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${Session.token}`,
+                        'Empresa': CONFIG.headers.Empresa,
+                        'Device': CONFIG.headers.Device
+                    },
+                    body: formData
+                });
+
+                Chat.removeThinking();
+
+                if (res.status === 401) {
+                    Session.clear();
+                    UI.toast('Tu sesión ha expirado.', 'warning');
+                    setTimeout(() => UI.showScreen('login'), 1500);
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (res.ok && data.message) {
+                    // Mostrar qué entendió (transcripción) como contexto
+                    if (data.transcription) {
+                        Chat.addMessage('user', `<em style="font-size:12px;color:rgba(255,255,255,0.75);">${Chat._escapeHtml(data.transcription)}</em>`);
+                    }
+                    Chat.addMessage('bot', data.message);
+                } else {
+                    Chat.addMessage('bot', data.error || 'No pude procesar el audio. Inténtalo de nuevo.');
+                }
+            } catch (err) {
+                Chat.removeThinking();
+                Chat.addMessage('bot', '<i class="bi bi-wifi-off"></i> Error al enviar el audio.');
+                console.error('[Voice Error]', err);
+            }
+        },
+
+        _getSupportedMime() {
+            const mimes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+            for (const mime of mimes) {
+                if (MediaRecorder.isTypeSupported(mime)) return mime;
+            }
+            return 'audio/webm';
+        },
+
+        _updateUI(recording) {
+            DOM.btnMic.classList.toggle('recording', recording);
+            DOM.recordingIndicator.classList.toggle('hidden', !recording);
+            // Cambiar tooltip
+            DOM.btnMic.title = recording ? 'Pulsa para parar' : 'Pulsa para grabar';
+        },
+
+        _startTimer() {
+            this._updateTimerDisplay(0);
+            this._timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - this._startTime) / 1000);
+                this._updateTimerDisplay(elapsed);
+            }, 1000);
+        },
+
+        _stopTimer() {
+            clearInterval(this._timerInterval);
+            this._timerInterval = null;
+        },
+
+        _updateTimerDisplay(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            DOM.recordingTimer.textContent = `${m}:${String(s).padStart(2, '0')}`;
+        }
+    };
+
+    // ===== AUTH MODULE =====
+    const Auth = {
+        async login(nif, movil) {
+            UI.clearLoginError();
+            UI.setLoginLoading(true);
+
+            try {
+                const res = await fetch(`${CONFIG.apiUrl}/get-token`, {
+                    method: 'POST',
+                    headers: CONFIG.headers,
+                    body: JSON.stringify({ nif, movil })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.token) {
+                    Session.save(data.token, data.nombre);
+                    UI.showScreen('chat');
+                    UI.showUserBadge(Session.nombre);
+                    Chat.loadHistory();
+                } else {
+                    UI.showLoginError(data.error || 'Credenciales incorrectas');
+                }
+            } catch (err) {
+                UI.showLoginError('No se pudo conectar con el servidor');
+                console.error('[Auth Error]', err);
+            } finally {
+                UI.setLoginLoading(false);
+            }
+        },
+
+        logout() {
+            Voice.release();
+            Cache.clear();
+            Session.clear();
+            UI.showScreen('login');
+            // Reset chat
+            const welcomeMessages = [
+                '¡Hola! Soy <strong>PACCMAN</strong>, tu asistente virtual de seguros. ¿En qué puedo ayudarte?',
+                '¡Bienvenido! Soy <strong>PACCMAN</strong>, estoy aquí para ayudarte con tus seguros.',
+                '¡Hola! Soy <strong>PACCMAN</strong>. Pregúntame lo que necesites sobre tus seguros.',
+                '¡Hola! Soy <strong>PACCMAN</strong>, tu asistente de GRUPO PACC. ¿Qué necesitas?',
+            ];
+            const welcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+            DOM.chatBox.innerHTML = `
+                <div class="date-divider"><span>Hoy</span></div>
+                <div class="message bot animate-in">
+                    <div class="message-content">${welcome}</div>
+                </div>`;
+            DOM.quickActions.style.display = 'flex';
+            Chat._quickActionsVisible = true;
+            UI.showUserBadge(null);
+        }
+    };
+
+    // ===== EVENT BINDING =====
+    function bindEvents() {
+        // Login form
+        DOM.loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nif   = DOM.nifInput.value.trim().toUpperCase();
+            const movil = DOM.movilInput.value.trim();
+            Auth.login(nif, movil);
         });
-    });
 
-    // --- Delegación para elementos con data-solicitud ---
-    document.addEventListener('click', (e) => {
-        const btn = e.target.closest('[data-solicitud]');
-        if (!btn) return;
+        // Chat form
+        DOM.chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            Chat.send(DOM.chatInput.value);
+        });
 
-        e.preventDefault();
+        // Quick actions
+        DOM.quickActions.addEventListener('click', (e) => {
+            const btn = e.target.closest('.quick-btn');
+            if (btn) {
+                const msg = btn.dataset.msg;
+                if (msg) Chat.send(msg);
+            }
+        });
 
-        const solicitud = btn.getAttribute('data-solicitud');
-        if (solicitud) {
+        // Logout
+        DOM.logoutBtn.addEventListener('click', () => Auth.logout());
+
+        // Modal funcionalidades
+        if (DOM.btnFeatures && DOM.featuresModal) {
+            DOM.btnFeatures.addEventListener('click', () => {
+                DOM.featuresModal.classList.remove('hidden');
+            });
+
+            DOM.featuresClose.addEventListener('click', () => {
+                DOM.featuresModal.classList.add('hidden');
+            });
+
+            // Cerrar con clic en backdrop
+            DOM.featuresModal.querySelector('.features-modal-backdrop').addEventListener('click', () => {
+                DOM.featuresModal.classList.add('hidden');
+            });
+
+            // Cerrar con Escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !DOM.featuresModal.classList.contains('hidden')) {
+                    DOM.featuresModal.classList.add('hidden');
+                }
+            });
+        }
+
+        // Delegated click: data-solicitud links (from API HTML responses)
+        document.addEventListener('click', (e) => {
+            const el = e.target.closest('[data-solicitud]');
+            if (!el) return;
+            e.preventDefault();
+
+            const solicitud = el.getAttribute('data-solicitud');
+            if (!solicitud) return;
+
             const parts = solicitud.split('#');
             if (parts.length === 3 && parts[0] === 'ecliente') {
                 const [, entidad, id] = parts;
-                window.open(`${eclienteUrl}/access/${entidad}/${userToken}/${id}`);
+                window.open(`${CONFIG.eclienteUrl}/access/${entidad}/${Session.token}/${id}`);
                 return;
             }
-            // Si no es ecliente, enviar texto al chat
-            submitChatMessage(solicitud);
+            Chat.send(solicitud);
+        });
+
+        // Botones de acción inline (siniestros, etc.)
+        DOM.chatBox.addEventListener('click', (e) => {
+            const actionBtn = e.target.closest('.cb-action-btn');
+            if (!actionBtn) return;
+            const msg = actionBtn.dataset.msg;
+            if (msg) {
+                // Deshabilitar todos los botones del grupo
+                const group = actionBtn.closest('.cb-action-buttons');
+                if (group) group.querySelectorAll('.cb-action-btn').forEach(b => b.disabled = true);
+                Chat.send(msg);
+            }
+        });
+
+        // Selección de póliza para anulación/modificación/duplicado
+        DOM.chatBox.addEventListener('click', async (e) => {
+            const selectBtn = e.target.closest('.cb-poliza-select-btn');
+            if (!selectBtn) return;
+
+            const accion = selectBtn.dataset.accion;
+            const poliza = selectBtn.dataset.poliza;
+            const desc = selectBtn.dataset.desc;
+
+            // Marcar como seleccionada
+            const selector = selectBtn.closest('.cb-poliza-selector');
+            selector.querySelectorAll('.cb-poliza-option').forEach(opt => opt.classList.remove('cb-poliza-option--selected'));
+            selectBtn.closest('.cb-poliza-option').classList.add('cb-poliza-option--selected');
+            selector.querySelectorAll('.cb-poliza-select-btn').forEach(b => {
+                b.disabled = true;
+                b.textContent = accion === 'duplicado' ? 'Descargar' : 'Seleccionar';
+            });
+            selectBtn.disabled = false;
+
+            // Flujo duplicado: descargar PDF directamente
+            if (accion === 'duplicado') {
+                const contrato = selectBtn.dataset.contrato;
+
+                selectBtn.textContent = 'Descargando...';
+                selectBtn.classList.add('cb-poliza-select-btn--loading');
+
+                try {
+                    const res = await fetch(`${CONFIG.apiUrl}/duplicado-poliza?contrato=${encodeURIComponent(contrato)}`, {
+                        headers: { 'Authorization': `Bearer ${Session.token}` }
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.error || 'Error al descargar');
+                    }
+
+                    // Obtener nombre del fichero del header o generar uno
+                    const disposition = res.headers.get('Content-Disposition');
+                    let filename = `duplicado_${poliza || contrato}.pdf`;
+                    if (disposition) {
+                        const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                        if (match && match[1]) filename = match[1].replace(/['"]/g, '');
+                    }
+
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+
+                    selectBtn.textContent = 'Descargado';
+                    selectBtn.classList.remove('cb-poliza-select-btn--loading');
+                    selectBtn.classList.add('cb-poliza-select-btn--success');
+
+                    // Mensaje de confirmación en el chat
+                    Chat.addMessage('bot', `He descargado el duplicado de tu póliza ${poliza} (${desc}).`);
+
+                } catch (err) {
+                    selectBtn.textContent = 'Error';
+                    selectBtn.classList.remove('cb-poliza-select-btn--loading');
+                    selectBtn.classList.add('cb-poliza-select-btn--error');
+                    console.error('Error descargando duplicado:', err);
+
+                    // Crear solicitud automática para que la ejecutiva envíe el duplicado
+                    try {
+                        const descSolicitud = `Solicitud automática: no se pudo descargar el duplicado de la póliza ${poliza} (${desc}). El cliente necesita que se le envíe el documento.`;
+                        const resSol = await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
+                            method: 'POST',
+                            headers: Session.getAuthHeaders(),
+                            body: JSON.stringify({ tipo: 'poliza', descripcion: descSolicitud })
+                        });
+
+                        if (resSol.ok) {
+                            Chat.addMessage('bot', `No he podido descargar el duplicado de la póliza ${poliza} (${desc}), pero he registrado una solicitud para que tu ejecutiva de cuentas te lo envíe.`);
+                        } else {
+                            Chat.addMessage('bot', `No he podido descargar el duplicado de la póliza ${poliza}. Contacta con tu oficina para obtenerlo.`);
+                        }
+                    } catch (solErr) {
+                        console.error('Error creando solicitud de duplicado:', solErr);
+                        Chat.addMessage('bot', `No he podido descargar el duplicado de la póliza ${poliza}. Contacta con tu oficina para obtenerlo.`);
+                    }
+                }
+                return;
+            }
+
+            // Flujo anulación/modificación: enviar mensaje al bot
+            selectBtn.textContent = 'Seleccionada';
+            const msg = `Quiero ${accion} la póliza ${poliza} (${desc})`;
+            Chat.send(msg);
+        });
+
+        // Solicitud de cambio: confirmar / cancelar
+        DOM.chatBox.addEventListener('click', async (e) => {
+            const confirmBtn = e.target.closest('.cb-solicitud-btn--confirm');
+            const cancelBtn = e.target.closest('.cb-solicitud-btn--cancel');
+
+            if (confirmBtn) {
+                const card = confirmBtn.closest('.cb-solicitud');
+                const tipo = confirmBtn.dataset.tipo;
+                const desc = confirmBtn.dataset.desc;
+
+                // Deshabilitar botones
+                card.querySelectorAll('.cb-solicitud-btn').forEach(b => b.disabled = true);
+                confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
+
+                try {
+                    const res = await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
+                        method: 'POST',
+                        headers: Session.getAuthHeaders(),
+                        body: JSON.stringify({ tipo, descripcion: desc })
+                    });
+
+                    if (res.ok) {
+                        // Transformar card a confirmada
+                        card.classList.remove('cb-solicitud--preview');
+                        card.classList.add('cb-solicitud--confirmed');
+                        card.querySelector('.cb-solicitud-header').innerHTML = '<i class="bi bi-check-circle-fill"></i> Solicitud registrada';
+                        card.querySelector('.cb-solicitud-actions').innerHTML = '<div class="cb-solicitud-footer">Tu ejecutiva de cuentas revisará la solicitud y se pondrá en contacto contigo.</div>';
+                    } else {
+                        confirmBtn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> Error';
+                        UI.toast('No se pudo registrar la solicitud', 'error');
+                        card.querySelectorAll('.cb-solicitud-btn').forEach(b => b.disabled = false);
+                        confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar';
+                    }
+                } catch (err) {
+                    console.error('[Solicitud Error]', err);
+                    UI.toast('Error de conexión', 'error');
+                    card.querySelectorAll('.cb-solicitud-btn').forEach(b => b.disabled = false);
+                    confirmBtn.innerHTML = '<i class="bi bi-check-lg"></i> Confirmar';
+                }
+            }
+
+            if (cancelBtn) {
+                const card = cancelBtn.closest('.cb-solicitud');
+                card.classList.add('cb-solicitud--cancelled');
+                card.querySelector('.cb-solicitud-header').innerHTML = '<i class="bi bi-x-circle"></i> Solicitud cancelada';
+                card.querySelector('.cb-solicitud-actions').remove();
+                Chat.addMessage('bot', 'De acuerdo, la solicitud ha sido cancelada. Si necesitas algo más, estoy aquí.');
+            }
+        });
+
+        // Keyboard: Enter to send (without shift)
+        DOM.chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                const text = DOM.chatInput.value.trim();
+                if (text) Chat.send(text);
+            }
+        });
+    }
+
+    // ===== INIT =====
+    function init() {
+        cacheDom();
+        Theme.init();
+        bindEvents();
+        Voice.init();
+
+        if (Session.init()) {
+            UI.showScreen('chat');
+            UI.showUserBadge(Session.nombre);
+            Chat.loadHistory();
+        } else {
+            UI.showScreen('login');
         }
-    });
-
-    // --- Funciones reutilizables ---
-    function submitChatMessage(text) {
-        const chatInput = document.getElementById('chat-message');
-        chatInput.value = text;
-
-        const chatForm = document.getElementById('chat-form');
-        chatForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     }
 
-    function addMessageToChat(type, message, thinking = false) {
-        const chatBox = document.getElementById('chat-box');
-        const messageDiv = document.createElement('div');
-        messageDiv.classList.add('message', type);
-        if (thinking) messageDiv.classList.add('thinking');
-
-        const textDiv = document.createElement('div');
-        textDiv.classList.add('text');
-        if (type === 'bot') textDiv.classList.add('w-100');
-        textDiv.innerHTML = message;
-
-        messageDiv.appendChild(textDiv);
-        chatBox.appendChild(messageDiv);
-        chatBox.scrollTop = chatBox.scrollHeight;
+    // Boot
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
     }
 
-    function addMessageToChatThinking() {
-        const thinkingHTML = `
-            <div id="loading" class="d-flex align-items-center">
-                <span class="dot"></span>
-                <span class="dot"></span>
-                <span class="dot"></span>
-            </div>`;
-        addMessageToChat('bot', thinkingHTML, true);
-    }
-
-    function removeThinkingMessage() {
-        document.querySelectorAll('.thinking').forEach(el => el.remove());
-    }
-
-    function showApiError(msg) {
-        const errorDiv = document.getElementById('api-errors');
-        errorDiv.textContent = msg;
-        errorDiv.classList.remove('d-none');
-    }
-
-    function clearApiError() {
-        const errorDiv = document.getElementById('api-errors');
-        if (!errorDiv.classList.contains('d-none')) {
-            errorDiv.classList.add('d-none');
-        }
-    }
-});
+    // Expose for debugging
+    return { Session, Chat, Auth, UI, Voice, Theme };
+})();
