@@ -329,8 +329,6 @@ const APP = (() => {
         async send(text) {
             if (!text.trim()) return;
 
-            // Remove previous suggestions
-            DOM.chatBox.querySelectorAll('.cb-suggestions').forEach(el => el.remove());
             this.addMessage('user', this._escapeHtml(text));
             DOM.chatInput.value = '';
             DOM.chatInput.focus();
@@ -339,7 +337,8 @@ const APP = (() => {
             const cached = Cache.get(text);
             if (cached) {
                 const msgEl = this.addMessage('bot', cached.message);
-                this._showSuggestions(msgEl, cached.function, cached.message, text);
+                // Sugerencias rápidas desactivadas
+                // this._showSuggestions(msgEl, cached.function, cached.message, text);
                 return;
             }
 
@@ -367,7 +366,8 @@ const APP = (() => {
                     // Guardar en caché para próximas consultas idénticas
                     Cache.set(text, data);
                     const msgEl = this.addMessage('bot', data.message);
-                    this._showSuggestions(msgEl, data.function, data.message, text);
+                    // Sugerencias rápidas desactivadas
+                    // this._showSuggestions(msgEl, data.function, data.message, text);
                 } else {
                     this.addMessage('bot', data.error || 'Lo siento, no he podido procesar tu consulta. Intentalo de nuevo.');
                 }
@@ -760,7 +760,7 @@ const APP = (() => {
                     this._sendAudio(blob);
                 };
 
-                this._mediaRecorder.start();
+                this._mediaRecorder.start(1000); // Generar datos cada segundo
                 this._isRecording = true;
                 this._startTime = Date.now();
                 this._updateUI(true);
@@ -776,6 +776,19 @@ const APP = (() => {
 
         _stop() {
             if (!this._isRecording || !this._mediaRecorder) return;
+
+            // Validar duración mínima (1.5 segundos)
+            const duration = Date.now() - this._startTime;
+            if (duration < 1500) {
+                this._isRecording = false;
+                this._mediaRecorder.stop();
+                this._chunks = []; // Descartar audio demasiado corto
+                this._stopTimer();
+                this._updateUI(false);
+                UI.toast('Grabación muy corta. Mantén pulsado al menos 2 segundos.', 'warning');
+                return;
+            }
+
             this._isRecording = false;
             this._mediaRecorder.stop();
             this._stopTimer();
@@ -792,6 +805,13 @@ const APP = (() => {
         },
 
         async _sendAudio(blob) {
+            // Verificar que el blob tiene contenido
+            if (!blob || blob.size < 1000) {
+                Chat.addMessage('bot', '<i class="bi bi-mic-mute"></i> No se captó audio. Comprueba que el micrófono está activo y habla más cerca.');
+                return;
+            }
+
+            console.log(`[Voice] Audio blob: ${(blob.size / 1024).toFixed(1)}KB, tipo: ${blob.type}`);
             const audioUrl = URL.createObjectURL(blob);
             Chat.addMessage('user', `<div class="message-audio"><i class="bi bi-mic-fill"></i><audio controls src="${audioUrl}"></audio></div>`);
             Chat.showThinking();
@@ -829,11 +849,31 @@ const APP = (() => {
                     }
                     Chat.addMessage('bot', data.message);
                 } else {
-                    Chat.addMessage('bot', data.error || 'No pude procesar el audio. Inténtalo de nuevo.');
+                    const errorMsg = data.error || 'No pude procesar el audio.';
+                    Chat.addMessage('bot', `<i class="bi bi-exclamation-circle"></i> ${errorMsg} Puedes escribir tu consulta o intentarlo de nuevo.`);
+                    console.error('[Voice] Server error:', errorMsg);
+
+                    // Crear solicitud automática si el error es del servidor (no del usuario)
+                    if (res.status >= 500) {
+                        try {
+                            await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
+                                method: 'POST',
+                                headers: Session.getAuthHeaders(),
+                                body: JSON.stringify({
+                                    tipo: 'otro',
+                                    descripcion: `Solicitud automática: error al procesar audio del cliente. Error: ${errorMsg}`
+                                })
+                            });
+                            Chat.addMessage('bot', 'He registrado una solicitud para que tu ejecutiva de cuentas te contacte.');
+                        } catch (solErr) {
+                            console.error('[Voice] Error creando solicitud:', solErr);
+                        }
+                    }
                 }
             } catch (err) {
                 Chat.removeThinking();
-                Chat.addMessage('bot', '<i class="bi bi-wifi-off"></i> Error al enviar el audio.');
+                Chat.addMessage('bot', '<i class="bi bi-wifi-off"></i> No se pudo conectar con el servidor. Puedes escribir tu consulta directamente.');
+                UI.toast('Error de conexión al enviar audio', 'error');
                 console.error('[Voice Error]', err);
             }
         },
