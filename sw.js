@@ -4,7 +4,7 @@
  * Usa rutas relativas al scope del SW para funcionar en cualquier subdirectorio
  */
 
-const CACHE_NAME = 'paccman-v3';
+const CACHE_NAME = 'paccman-v4';
 
 // ===== INSTALL: cachear assets estáticos =====
 self.addEventListener('install', (event) => {
@@ -73,7 +73,14 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Assets estáticos → cache-first (rápido)
+    // CSS/JS propios → network-first (para que las actualizaciones se vean inmediatamente)
+    const swScope = new URL(self.registration.scope).pathname;
+    if ((url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) && url.pathname.startsWith(swScope)) {
+        event.respondWith(networkFirst(request));
+        return;
+    }
+
+    // Resto de assets estáticos (imágenes, fuentes, CDN) → cache-first (rápido)
     event.respondWith(cacheFirst(request));
 });
 
