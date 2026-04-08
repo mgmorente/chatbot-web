@@ -34,10 +34,12 @@
             <div class="login-left">
                 <div class="login-brand">
                     <div class="brand-icon">
-                        <i class="bi bi-shield-check"></i>
+                        <img src="icons/icon-128.png" alt="PACCMAN">
                     </div>
-                    <h1>GRUPO PACC</h1>
-                    <p>Tu asistente de seguros inteligente</p>
+                    <div class="brand-text">
+                        <h1>GRUPO PACC</h1>
+                        <p>Tu asistente de seguros inteligente</p>
+                    </div>
                 </div>
                 <div class="login-features">
                     <div class="feature">
@@ -64,10 +66,10 @@
 
                     <div class="form-group">
                         <label for="nif">
-                            <i class="bi bi-person-badge"></i> NIF
+                            <i class="bi bi-person-badge"></i> Identificador
                         </label>
-                        <input type="text" id="nif" required pattern="^[0-9]{8}[A-Za-z]$"
-                            placeholder="12345678Z" autocomplete="off">
+                        <input type="text" id="nif" required pattern="^([0-9]{8}[A-Za-z]|[XYZxyz][0-9]{7}[A-Za-z]|[A-Ha-h][0-9]{7}[0-9A-Ja-j])$"
+                            autocomplete="off">
                     </div>
 
                     <div class="form-group">
@@ -75,7 +77,7 @@
                             <i class="bi bi-phone"></i> Movil
                         </label>
                         <input type="text" id="movil" required pattern="^[67][0-9]{8}$"
-                            placeholder="612345678" autocomplete="off">
+                            autocomplete="off">
                     </div>
 
                     <div id="api-errors" class="error-message hidden"></div>
@@ -85,6 +87,35 @@
                         <span id="spinner" class="spinner hidden"></span>
                     </button>
                 </form>
+
+                <form id="otp-form" class="login-form hidden">
+                    <h2>Verificacion</h2>
+                    <p id="otp-subtitle" class="login-subtitle">Introduce el codigo enviado a tu email</p>
+
+                    <div class="form-group">
+                        <label for="otp-code">
+                            <i class="bi bi-shield-lock"></i> Codigo
+                        </label>
+                        <input type="text" id="otp-code" required pattern="^[0-9]{6}$"
+                            maxlength="6" inputmode="numeric" autocomplete="one-time-code"
+                            style="text-align:center;font-size:24px;letter-spacing:8px;">
+                    </div>
+
+                    <div id="otp-errors" class="error-message hidden"></div>
+
+                    <button id="otpSubmitButton" type="submit" class="btn-login">
+                        <span id="otpButtonText">Verificar</span>
+                        <span id="otpSpinner" class="spinner hidden"></span>
+                    </button>
+
+                    <button type="button" id="otp-back" class="btn-link" style="margin-top:12px;background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </button>
+                </form>
+            </div>
+            <div class="login-privacy">
+                Al acceder, aceptas el uso de almacenamiento local necesario para el funcionamiento del servicio.
+                <a href="https://www.grupopacc.es/politica-privacidad/" target="_blank" rel="noopener">Politica de privacidad</a>
             </div>
         </div>
     </div>
@@ -114,14 +145,18 @@
                             <i class="bi bi-three-dots-vertical"></i>
                         </button>
                         <div id="avatar-dropdown" class="avatar-dropdown hidden">
-                            <button id="btn-features" class="avatar-dropdown-item">
-                                <i class="bi bi-info-circle"></i> Informacion
+                            <button id="btn-ecliente" class="avatar-dropdown-item">
+                                <i class="bi bi-box-arrow-up-right"></i> eCliente
+                            </button>
+                            <button id="btn-theme" class="avatar-dropdown-item">
+                                <i class="bi bi-moon-fill"></i> Cambiar tema
                             </button>
                             <button id="btn-clear-chat" class="avatar-dropdown-item">
                                 <i class="bi bi-trash3"></i> Borrar chat
                             </button>
-                            <button id="btn-theme" class="avatar-dropdown-item">
-                                <i class="bi bi-moon-fill"></i> Cambiar tema
+                            <div class="avatar-dropdown-divider"></div>
+                            <button id="btn-features" class="avatar-dropdown-item">
+                                <i class="bi bi-info-circle"></i> Informacion
                             </button>
                             <div class="avatar-dropdown-divider"></div>
                             <button id="btn-logout" class="avatar-dropdown-item avatar-dropdown-item--danger">
@@ -255,24 +290,10 @@
                             </div>
                         </div>
                         <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-input-cursor-text"></i></div>
-                            <div>
-                                <strong>Autocompletado predictivo</strong>
-                                <p>Mientras escribes, PACCMAN sugiere consultas frecuentes en tiempo real. Compatible con teclados predictivos de Android e iOS.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
                             <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-headset"></i></div>
                             <div>
                                 <strong>Contacto directo con tu ejecutiva</strong>
                                 <p>Ficha de tu ejecutiva de cuentas con boton de llamada directa. Si no tienes ejecutiva, muestra los datos de tu oficina.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#e8effc;color:#1a56db"><i class="bi bi-heart-pulse"></i></div>
-                            <div>
-                                <strong>Deteccion de intencion y empatia</strong>
-                                <p>PACCMAN analiza cada mensaje para detectar urgencia o emociones y adapta su tono y prioridad de respuesta.</p>
                             </div>
                         </div>
                     </div>
@@ -393,8 +414,8 @@
                         <div class="fm-card">
                             <div class="fm-card-icon" style="background:#f3f4f6;color:#374151"><i class="bi bi-shield-lock"></i></div>
                             <div>
-                                <strong>Autenticacion segura</strong>
-                                <p>Acceso con NIF y movil verificado. Sesiones JWT de 2 horas con redireccion segura al expirar.</p>
+                                <strong>Acceso seguro</strong>
+                                <p>Acceso con tu identificador y movil verificado. Tu sesion se cierra automaticamente por seguridad.</p>
                             </div>
                         </div>
                         <div class="fm-card">
@@ -402,13 +423,6 @@
                             <div>
                                 <strong>Portal e-Cliente integrado</strong>
                                 <p>Accede directamente al portal de cliente desde el chat con tu sesion activa.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#f3f4f6;color:#374151"><i class="bi bi-arrow-repeat"></i></div>
-                            <div>
-                                <strong>Cache inteligente</strong>
-                                <p>Service Worker con estrategia hibrida: siempre actualizado en CSS/JS y cache para recursos estaticos.</p>
                             </div>
                         </div>
                     </div>

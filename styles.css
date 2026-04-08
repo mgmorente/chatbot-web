@@ -226,8 +226,33 @@ html, body {
 
 .login-container {
     display: flex;
+    flex-wrap: wrap;
     width: 100%;
     height: 100%;
+    position: relative;
+}
+
+.login-privacy {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    padding: 14px 16px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.25);
+    backdrop-filter: blur(4px);
+}
+
+.login-privacy a {
+    color: #fff;
+    text-decoration: underline;
+    font-weight: 600;
+}
+
+.login-privacy a:hover {
+    text-decoration: underline;
 }
 
 .login-left {
@@ -268,27 +293,41 @@ html, body {
     position: relative;
     z-index: 1;
     margin-bottom: 48px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
 }
 
 .brand-icon {
     width: 64px;
     height: 64px;
-    background: rgba(255,255,255,0.15);
-    backdrop-filter: blur(10px);
+    background: none;
     border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 28px;
-    margin-bottom: 24px;
-    border: 1px solid rgba(255,255,255,0.2);
+    margin-bottom: 0;
+    border: none;
+    flex-shrink: 0;
+}
+
+.brand-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+.login-brand-text {
+    display: flex;
+    flex-direction: column;
 }
 
 .login-brand h1 {
     font-size: 32px;
     font-weight: 700;
     letter-spacing: -0.5px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .login-brand p {
@@ -338,6 +377,10 @@ html, body {
 .login-form {
     width: 100%;
     max-width: 400px;
+}
+
+.login-form.hidden {
+    display: none;
 }
 
 .login-form h2 {
@@ -782,12 +825,22 @@ html, body {
 }
 
 .message-content {
-    padding: 10px 14px;
+    position: relative;
+    padding: 10px 14px 18px 14px;
     border-radius: var(--radius-lg);
     font-size: 14px;
     line-height: 1.55;
     word-break: break-word;
     box-shadow: var(--shadow-sm);
+}
+
+.message-time {
+    display: block;
+    text-align: right;
+    font-size: 10px;
+    opacity: 0.55;
+    margin-top: 4px;
+    line-height: 1;
 }
 
 .message.user .message-content {

@@ -10,6 +10,7 @@ const APP = (() => {
     const CONFIG = {
         apiUrl: ENV.API_URL,
         apiDuplicado: ENV.API_DUPLICADO,
+        apiWallet: ENV.API_WALLET,
         eclienteUrl: ENV.ECLIENTE_URL,
         sessionDuration: 2 * 60 * 60 * 1000, // 2 hours
         headers: {
@@ -93,6 +94,7 @@ const APP = (() => {
             { icon: 'bi-plus-circle',       text: 'Quiero dar de alta un siniestro', keywords: ['alta', 'nuevo', 'abrir', 'declarar', 'siniestro', 'parte'] },
             { icon: 'bi-pencil-square',     text: 'Quiero solicitar un cambio en mi póliza', keywords: ['cambio', 'modificar', 'cambiar', 'actualizar', 'solicitar'] },
             { icon: 'bi-file-earmark-arrow-down', text: 'Quiero un duplicado de mi póliza', keywords: ['duplicado', 'copia', 'descargar', 'documento', 'pdf'] },
+            { icon: 'bi-wallet2',           text: 'Quiero la tarjeta wallet de mi póliza', keywords: ['wallet', 'tarjeta', 'cartera', 'movil', 'apple', 'google'] },
             { icon: 'bi-x-circle',          text: 'Quiero anular una póliza', keywords: ['anular', 'cancelar', 'baja', 'dar de baja'] },
         ],
 
@@ -249,6 +251,14 @@ const APP = (() => {
         DOM.buttonText     = document.getElementById('buttonText');
         DOM.spinner        = document.getElementById('spinner');
         DOM.apiErrors      = document.getElementById('api-errors');
+        DOM.otpForm        = document.getElementById('otp-form');
+        DOM.otpCode        = document.getElementById('otp-code');
+        DOM.otpErrors      = document.getElementById('otp-errors');
+        DOM.otpSubtitle    = document.getElementById('otp-subtitle');
+        DOM.otpSubmitBtn   = document.getElementById('otpSubmitButton');
+        DOM.otpButtonText  = document.getElementById('otpButtonText');
+        DOM.otpSpinner     = document.getElementById('otpSpinner');
+        DOM.otpBack        = document.getElementById('otp-back');
         DOM.chatBox        = document.getElementById('chat-box');
         DOM.chatForm       = document.getElementById('chat-form');
         DOM.chatInput      = document.getElementById('chat-message');
@@ -264,6 +274,7 @@ const APP = (() => {
         DOM.btnTheme       = document.getElementById('btn-theme');
         DOM.btnFeatures    = document.getElementById('btn-features');
         DOM.btnClearChat   = document.getElementById('btn-clear-chat');
+        DOM.btnEcliente    = document.getElementById('btn-ecliente');
         DOM.btnAvatarMenu  = document.getElementById('btn-avatar-menu');
         DOM.avatarDropdown = document.getElementById('avatar-dropdown');
         DOM.featuresModal  = document.getElementById('features-modal');
@@ -416,18 +427,33 @@ const APP = (() => {
             // Si ya contiene HTML de nuestras cards, no tocar
             if (text.includes('cb-data-') || text.includes('cb-results') || text.includes('cb-pagos-') || text.includes('cb-telefonos') || text.includes('cb-solicitud') || text.includes('cb-poliza-selector') || text.includes('cb-action-')) {
                 // Solo parsear la parte de texto fuera de las tags HTML
-                return text.replace(/^([^<]+)/, (match) => {
-                    return match
-                        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                        .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
-                        .replace(/\n/g, '<br>');
-                });
+                return text.replace(/^([^<]+)/, (match) => this._mdToHtml(match));
             }
-            // Texto plano: convertir markdown básico
-            return text
+            return this._mdToHtml(text);
+        },
+
+        _mdToHtml(text) {
+            // Headers
+            let html = text
+                .replace(/^### (.+)$/gm, '<strong style="font-size:1.05em">$1</strong>')
+                .replace(/^## (.+)$/gm, '<strong style="font-size:1.1em">$1</strong>');
+            // Bold / italic
+            html = html
                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
-                .replace(/\n/g, '<br>');
+                .replace(/\*(.+?)\*/g, '<em>$1</em>');
+            // Listas con - o *
+            html = html.replace(/(^|\n)([*\-] .+(?:\n[*\-] .+)*)/g, (match, pre, list) => {
+                const items = list.split('\n').map(l => `<li>${l.replace(/^[*\-] /, '')}</li>`).join('');
+                return `${pre}<ul style="margin:4px 0 4px 16px;padding:0">${items}</ul>`;
+            });
+            // Listas numeradas
+            html = html.replace(/(^|\n)(\d+\. .+(?:\n\d+\. .+)*)/g, (match, pre, list) => {
+                const items = list.split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('');
+                return `${pre}<ol style="margin:4px 0 4px 16px;padding:0">${items}</ol>`;
+            });
+            // Saltos de línea
+            html = html.replace(/\n/g, '<br>');
+            return html;
         },
 
         addMessage(type, html) {
@@ -450,6 +476,13 @@ const APP = (() => {
                     content.appendChild(ttsBtn);
                 }
             }
+
+            // Hora del mensaje estilo WhatsApp
+            const time = document.createElement('span');
+            time.className = 'message-time';
+            const now = new Date();
+            time.textContent = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            content.appendChild(time);
 
             wrapper.appendChild(content);
             DOM.chatBox.appendChild(wrapper);
@@ -691,6 +724,12 @@ const APP = (() => {
                     contentDiv.className = 'message-content';
                     contentDiv.innerHTML = type === 'bot' ? this._formatMarkdown(content) : content;
 
+                    // Hora del mensaje desde el servidor
+                    const time = document.createElement('span');
+                    time.className = 'message-time';
+                    time.textContent = new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    contentDiv.appendChild(time);
+
                     wrapper.appendChild(contentDiv);
                     DOM.chatBox.appendChild(wrapper);
                 });
@@ -719,7 +758,7 @@ const APP = (() => {
 
         _dynamicGreeting(isReturning) {
             const h = new Date().getHours();
-            const saludo = h < 14 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches';
+            const saludo = h < 13 ? 'Buenos días' : h < 21 ? 'Buenas tardes' : 'Buenas noches';
             const nombre = Session.nombre ? Session.nombre.split(' ')[0] : '';
             const nombreHtml = nombre ? `, <strong>${nombre}</strong>` : '';
 
@@ -1101,6 +1140,9 @@ const APP = (() => {
 
     // ===== AUTH MODULE =====
     const Auth = {
+        _pendingNif: null,
+        _pendingMovil: null,
+
         async login(nif, movil) {
             UI.clearLoginError();
             UI.setLoginLoading(true);
@@ -1115,10 +1157,20 @@ const APP = (() => {
                 const data = await res.json();
 
                 if (res.ok && data.token) {
+                    // Sesión reciente → acceso directo sin OTP
                     Session.save(data.token, data.nombre);
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
+                } else if (res.ok && data.otp_required) {
+                    // OTP requerido → mostrar pantalla de código
+                    this._pendingNif = nif;
+                    this._pendingMovil = movil;
+                    DOM.loginForm.classList.add('hidden');
+                    DOM.otpForm.classList.remove('hidden');
+                    DOM.otpSubtitle.textContent = `Codigo enviado a ${data.email_masked}`;
+                    DOM.otpCode.value = '';
+                    DOM.otpCode.focus();
                 } else {
                     UI.showLoginError(data.error || 'Credenciales incorrectas');
                 }
@@ -1127,6 +1179,50 @@ const APP = (() => {
                 console.error('[Auth Error]', err);
             } finally {
                 UI.setLoginLoading(false);
+            }
+        },
+
+        async verifyOtp(code) {
+            DOM.otpErrors.classList.add('hidden');
+            DOM.otpSubmitBtn.disabled = true;
+            DOM.otpButtonText.textContent = 'Verificando...';
+            DOM.otpSpinner.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${CONFIG.apiUrl}/verify-otp`, {
+                    method: 'POST',
+                    headers: CONFIG.headers,
+                    body: JSON.stringify({
+                        nif: this._pendingNif,
+                        movil: this._pendingMovil,
+                        code
+                    })
+                });
+
+                const data = await res.json();
+
+                if (res.ok && data.token) {
+                    Session.save(data.token, data.nombre);
+                    UI.showScreen('chat');
+                    UI.showUserBadge(Session.nombre);
+                    Chat.loadHistory();
+                    // Limpiar estado OTP
+                    this._pendingNif = null;
+                    this._pendingMovil = null;
+                } else {
+                    DOM.otpErrors.textContent = data.error || 'Código incorrecto';
+                    DOM.otpErrors.classList.remove('hidden');
+                    DOM.otpCode.value = '';
+                    DOM.otpCode.focus();
+                }
+            } catch (err) {
+                DOM.otpErrors.textContent = 'No se pudo conectar con el servidor';
+                DOM.otpErrors.classList.remove('hidden');
+                console.error('[OTP Error]', err);
+            } finally {
+                DOM.otpSubmitBtn.disabled = false;
+                DOM.otpButtonText.textContent = 'Verificar';
+                DOM.otpSpinner.classList.add('hidden');
             }
         },
 
@@ -1155,6 +1251,21 @@ const APP = (() => {
             const nif   = DOM.nifInput.value.trim().toUpperCase();
             const movil = DOM.movilInput.value.trim();
             Auth.login(nif, movil);
+        });
+
+        // OTP form
+        DOM.otpForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const code = DOM.otpCode.value.trim();
+            if (code.length === 6) Auth.verifyOtp(code);
+        });
+
+        // OTP volver
+        DOM.otpBack.addEventListener('click', () => {
+            DOM.otpForm.classList.add('hidden');
+            DOM.loginForm.classList.remove('hidden');
+            DOM.otpErrors.classList.add('hidden');
+            DOM.otpCode.value = '';
         });
 
         // Chat form
@@ -1209,6 +1320,14 @@ const APP = (() => {
                 if (!e.target.closest('.avatar-menu-wrap')) {
                     DOM.avatarDropdown.classList.add('hidden');
                 }
+            });
+        }
+
+        // Botón eCliente → acceso con token a sección pólizas
+        if (DOM.btnEcliente) {
+            DOM.btnEcliente.addEventListener('click', () => {
+                DOM.avatarDropdown?.classList.add('hidden');
+                window.open(`${CONFIG.eclienteUrl}/access/duplicado/${Session.token}`, '_blank');
             });
         }
 
@@ -1287,9 +1406,44 @@ const APP = (() => {
             selectBtn.closest('.cb-poliza-option').classList.add('cb-poliza-option--selected');
             selector.querySelectorAll('.cb-poliza-select-btn').forEach(b => {
                 b.disabled = true;
-                b.textContent = accion === 'duplicado' ? 'Descargar' : 'Seleccionar';
+                b.textContent = accion === 'duplicado' ? 'Descargar' : accion === 'wallet' ? 'Wallet' : 'Seleccionar';
             });
             selectBtn.disabled = false;
+
+            // Flujo wallet: solicitar tarjeta wallet de la póliza
+            if (accion === 'wallet') {
+                const contrato = selectBtn.dataset.contrato;
+
+                selectBtn.textContent = 'Solicitando...';
+                selectBtn.classList.add('cb-poliza-select-btn--loading');
+
+                try {
+                    const res = await fetch(`${CONFIG.apiWallet}?contrato=${encodeURIComponent(contrato)}`, {
+                        headers: Session.getAuthHeaders()
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.error || 'Error al solicitar wallet');
+                    }
+
+                    selectBtn.textContent = 'Solicitado';
+                    selectBtn.classList.remove('cb-poliza-select-btn--loading');
+                    selectBtn.classList.add('cb-poliza-select-btn--success');
+
+                    Chat.addMessage('bot',
+                        `<i class="bi bi-wallet2"></i> He solicitado la tarjeta wallet de tu póliza ${poliza} (${desc}). Recibirás un enlace para añadirla a tu dispositivo.`
+                    );
+
+                } catch (err) {
+                    selectBtn.textContent = 'Error';
+                    selectBtn.classList.remove('cb-poliza-select-btn--loading');
+                    selectBtn.classList.add('cb-poliza-select-btn--error');
+                    console.error('Error solicitando wallet:', err);
+                    Chat.addMessage('bot', `No he podido solicitar la tarjeta wallet de la póliza ${poliza} (${desc}). Contacta con tu oficina.`);
+                }
+                return;
+            }
 
             // Flujo duplicado: descargar PDF directamente
             if (accion === 'duplicado') {
