@@ -1163,6 +1163,7 @@ const APP = (() => {
         _pendingNif: null,
         _pendingMovil: null,
 
+
         async login(nif, movil) {
             UI.clearLoginError();
             UI.setLoginLoading(true);
@@ -1179,7 +1180,6 @@ const APP = (() => {
                 if (res.ok && data.token) {
                     // Sesión reciente → acceso directo sin OTP
                     Session.save(data.token, data.nombre);
-                    try { localStorage.setItem('userNif', nif); localStorage.setItem('userMovil', movil); } catch {}
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
@@ -1224,7 +1224,7 @@ const APP = (() => {
 
                 if (res.ok && data.token) {
                     Session.save(data.token, data.nombre);
-                    try { localStorage.setItem('userNif', this._pendingNif); localStorage.setItem('userMovil', this._pendingMovil); } catch {}
+                    this._saveCredentials(this._pendingNif, this._pendingMovil);
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
@@ -1310,6 +1310,11 @@ const APP = (() => {
             e.preventDefault();
             const nif   = DOM.nifInput.value.trim().toUpperCase();
             const movil = DOM.movilInput.value.trim();
+            // Validar móvil (antes estaba en pattern del HTML, pero type=password no lo soporta visualmente)
+            if (!/^[67]\d{8}$/.test(movil)) {
+                UI.showLoginError('Introduce un número de móvil válido');
+                return;
+            }
             Auth.login(nif, movil);
         });
 

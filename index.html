@@ -68,16 +68,16 @@
                         <label for="nif">
                             <i class="bi bi-person-badge"></i> Identificador
                         </label>
-                        <input type="text" id="nif" required pattern="^([0-9]{8}[A-Za-z]|[XYZxyz][0-9]{7}[A-Za-z]|[A-Ha-h][0-9]{7}[0-9A-Ja-j])$"
-                            autocomplete="off">
+                        <input type="text" id="nif" name="username" required pattern="^([0-9]{8}[A-Za-z]|[XYZxyz][0-9]{7}[A-Za-z]|[A-Ha-h][0-9]{7}[0-9A-Ja-j])$"
+                            autocomplete="username">
                     </div>
 
                     <div class="form-group">
                         <label for="movil">
                             <i class="bi bi-phone"></i> Movil
                         </label>
-                        <input type="text" id="movil" required pattern="^[67][0-9]{8}$"
-                            autocomplete="off">
+                        <input type="password" id="movil" name="password" required
+                            autocomplete="current-password" inputmode="tel">
                     </div>
 
                     <div id="api-errors" class="error-message hidden"></div>

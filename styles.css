@@ -65,6 +65,11 @@
     background: var(--bg);
 }
 
+[data-theme="dark"] .chat-messages {
+    background-image: url('wallpaper-insurance-dark.png');
+}
+
+
 [data-theme="dark"] .login-left {
     background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
 }
@@ -755,7 +760,9 @@ html, body {
     flex: 1;
     overflow-y: auto;
     padding: 20px;
-    background: var(--bg-chat);
+    background-color: var(--bg-chat);
+    background-image: url('wallpaper-insurance-subtle.png');
+    background-repeat: repeat;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1766,6 +1773,15 @@ html, body {
     border-radius: var(--radius-full);
     cursor: pointer;
     transition: all var(--transition);
+    text-decoration: none;
+}
+
+a.cb-action-btn,
+a.cb-action-btn:visited,
+a.cb-action-btn:active,
+a.cb-action-btn:hover {
+    color: white !important;
+    text-decoration: none !important;
 }
 
 .cb-action-btn:hover:not(:disabled) {
