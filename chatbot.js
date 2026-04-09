@@ -326,6 +326,8 @@ const APP = (() => {
                 localStorage.removeItem('userToken');
                 localStorage.removeItem('userTokenExpiry');
                 localStorage.removeItem('userName');
+                localStorage.removeItem('userNif');
+                localStorage.removeItem('userMovil');
             } catch { /* ignore */ }
         },
 
@@ -1159,6 +1161,7 @@ const APP = (() => {
                 if (res.ok && data.token) {
                     // Sesión reciente → acceso directo sin OTP
                     Session.save(data.token, data.nombre);
+                    try { localStorage.setItem('userNif', nif); localStorage.setItem('userMovil', movil); } catch {}
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
@@ -1203,6 +1206,7 @@ const APP = (() => {
 
                 if (res.ok && data.token) {
                     Session.save(data.token, data.nombre);
+                    try { localStorage.setItem('userNif', this._pendingNif); localStorage.setItem('userMovil', this._pendingMovil); } catch {}
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
@@ -1498,7 +1502,6 @@ const APP = (() => {
                     selectBtn.classList.add('cb-poliza-select-btn--error');
                     console.error('Error descargando duplicado:', err);
 
-                    // Crear solicitud automática para que la ejecutiva envíe el duplicado
                     try {
                         const descSolicitud = `Solicitud automática: no se pudo descargar el duplicado de la póliza ${poliza} (${desc}). El cliente necesita que se le envíe el documento.`;
                         const resSol = await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
@@ -1506,7 +1509,6 @@ const APP = (() => {
                             headers: Session.getAuthHeaders(),
                             body: JSON.stringify({ tipo: 'poliza', descripcion: descSolicitud })
                         });
-
                         if (resSol.ok) {
                             Chat.addMessage('bot', `No he podido descargar el duplicado de la póliza ${poliza} (${desc}), pero he registrado una solicitud para que tu ejecutiva de cuentas te lo envíe.`);
                         } else {
@@ -1535,8 +1537,6 @@ const APP = (() => {
                 const card = confirmBtn.closest('.cb-solicitud');
                 const tipo = confirmBtn.dataset.tipo;
                 const desc = confirmBtn.dataset.desc;
-
-                // Deshabilitar botones
                 card.querySelectorAll('.cb-solicitud-btn').forEach(b => b.disabled = true);
                 confirmBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Enviando...';
 
@@ -1546,9 +1546,7 @@ const APP = (() => {
                         headers: Session.getAuthHeaders(),
                         body: JSON.stringify({ tipo, descripcion: desc })
                     });
-
                     if (res.ok) {
-                        // Transformar card a confirmada
                         card.classList.remove('cb-solicitud--preview');
                         card.classList.add('cb-solicitud--confirmed');
                         card.querySelector('.cb-solicitud-header').innerHTML = '<i class="bi bi-check-circle-fill"></i> Solicitud registrada';
@@ -1576,7 +1574,7 @@ const APP = (() => {
             }
         });
 
-        // Formulario de solicitud inline (tarjeta de contacto)
+        // Formulario de solicitud inline
         DOM.chatBox.addEventListener('input', (e) => {
             const input = e.target.closest('.cb-contact-form-input');
             if (!input) return;
@@ -1587,44 +1585,37 @@ const APP = (() => {
         DOM.chatBox.addEventListener('click', async (e) => {
             const sendBtn = e.target.closest('.cb-contact-form-send');
             if (!sendBtn || sendBtn.disabled) return;
-
             const row = sendBtn.closest('.cb-contact-form-row');
             const input = row.querySelector('.cb-contact-form-input');
             const form = sendBtn.closest('.cb-contact-form');
             const asunto = input.value.trim();
             if (!asunto) return;
-
-            // Deshabilitar
             sendBtn.disabled = true;
             input.disabled = true;
             sendBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-
             try {
                 const res = await fetch(`${CONFIG.apiUrl}/confirmar-solicitud`, {
                     method: 'POST',
                     headers: Session.getAuthHeaders(),
                     body: JSON.stringify({ tipo: 'otro', descripcion: `Solicitud del cliente: ${asunto}` })
                 });
-
                 if (res.ok) {
                     form.innerHTML = '<div class="cb-contact-form-sent"><i class="bi bi-check-circle-fill"></i> Solicitud enviada. Tu ejecutiva recibirá un email con tu consulta.</div>';
                     Chat.addMessage('bot', 'He registrado tu solicitud. Tu ejecutiva de cuentas se pondrá en contacto contigo lo antes posible.');
                 } else {
-                    sendBtn.disabled = false;
-                    input.disabled = false;
+                    sendBtn.disabled = false; input.disabled = false;
                     sendBtn.innerHTML = '<i class="bi bi-send-fill"></i>';
                     UI.toast('No se pudo enviar la solicitud. Inténtalo de nuevo.', 'error');
                 }
             } catch (err) {
                 console.error('[Contact Form Error]', err);
-                sendBtn.disabled = false;
-                input.disabled = false;
+                sendBtn.disabled = false; input.disabled = false;
                 sendBtn.innerHTML = '<i class="bi bi-send-fill"></i>';
                 UI.toast('Error de conexión', 'error');
             }
         });
 
-        // Enter key en el formulario de contacto
+        // Enter key en formulario de contacto
         DOM.chatBox.addEventListener('keydown', (e) => {
             const input = e.target.closest('.cb-contact-form-input');
             if (!input || e.key !== 'Enter') return;
@@ -1633,13 +1624,12 @@ const APP = (() => {
             if (sendBtn && !sendBtn.disabled) sendBtn.click();
         });
 
-        // Keyboard: Enter to send (without shift) — skip if autocomplete has selection
+        // Keyboard: Enter to send (without shift)
         DOM.chatInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
-                // If autocomplete dropdown is open with a selected item, let Autocomplete handle it
                 const dd = document.getElementById('autocomplete-dropdown');
                 if (dd && !dd.classList.contains('hidden') && dd.querySelector('.autocomplete-item.selected')) {
-                    return; // Autocomplete._onKeydown will handle this
+                    return;
                 }
                 e.preventDefault();
                 const text = DOM.chatInput.value.trim();
@@ -1649,7 +1639,7 @@ const APP = (() => {
     }
 
     // ===== INIT =====
-    function init() {
+    async function init() {
         cacheDom();
         Theme.init();
         bindEvents();
@@ -1657,9 +1647,40 @@ const APP = (() => {
         Autocomplete.init();
 
         if (Session.init()) {
-            UI.showScreen('chat');
-            UI.showUserBadge(Session.nombre);
-            Chat.loadHistory();
+            // Validar con el backend que la sesión sigue válida (control de IP)
+            try {
+                const nif = localStorage.getItem('userNif');
+                const movil = localStorage.getItem('userMovil');
+                if (nif && movil) {
+                    const res = await fetch(`${CONFIG.apiUrl}/get-token`, {
+                        method: 'POST',
+                        headers: CONFIG.headers,
+                        body: JSON.stringify({ nif, movil })
+                    });
+                    const data = await res.json();
+                    if (res.ok && data.token) {
+                        Session.save(data.token, data.nombre);
+                        UI.showScreen('chat');
+                        UI.showUserBadge(Session.nombre);
+                        Chat.loadHistory();
+                    } else if (data.otp_required) {
+                        Session.clear();
+                        UI.showScreen('login');
+                    } else {
+                        Session.clear();
+                        UI.showScreen('login');
+                    }
+                } else {
+                    UI.showScreen('chat');
+                    UI.showUserBadge(Session.nombre);
+                    Chat.loadHistory();
+                }
+            } catch (err) {
+                console.error('[IP Check Error]', err);
+                UI.showScreen('chat');
+                UI.showUserBadge(Session.nombre);
+                Chat.loadHistory();
+            }
         } else {
             UI.showScreen('login');
         }
@@ -1672,6 +1693,5 @@ const APP = (() => {
         init();
     }
 
-    // Expose for debugging
     return { Session, Chat, Auth, UI, Voice, Theme };
 })();
