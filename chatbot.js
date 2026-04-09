@@ -279,6 +279,7 @@ const APP = (() => {
         DOM.avatarDropdown = document.getElementById('avatar-dropdown');
         DOM.featuresModal  = document.getElementById('features-modal');
         DOM.featuresClose  = document.getElementById('features-modal-close');
+        DOM.btnScrollDown  = document.getElementById('btn-scroll-down');
     }
 
     // ===== SESSION MODULE =====
@@ -488,7 +489,7 @@ const APP = (() => {
 
             wrapper.appendChild(content);
             DOM.chatBox.appendChild(wrapper);
-            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+            Scroll.auto();
 
             // Hide quick actions after first user message
             if (type === 'user' && this._quickActionsVisible) {
@@ -514,7 +515,7 @@ const APP = (() => {
                     </div>
                 </div>`;
             DOM.chatBox.appendChild(wrapper);
-            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+            Scroll.toBottom();
         },
 
         removeThinking() {
@@ -674,7 +675,7 @@ const APP = (() => {
             });
 
             DOM.chatBox.appendChild(container);
-            DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+            Scroll.auto();
         },
 
         _escapeHtml(text) {
@@ -726,6 +727,23 @@ const APP = (() => {
                     contentDiv.className = 'message-content';
                     contentDiv.innerHTML = type === 'bot' ? this._formatMarkdown(content) : content;
 
+                    // Neutralizar botones interactivos del historial
+                    // Solicitudes: desactivar botones confirmar/cancelar
+                    contentDiv.querySelectorAll('.cb-solicitud--preview').forEach(card => {
+                        card.classList.remove('cb-solicitud--preview');
+                        card.classList.add('cb-solicitud--expired');
+                        const header = card.querySelector('.cb-solicitud-header');
+                        if (header) header.innerHTML = '<i class="bi bi-clock-history"></i> Solicitud expirada';
+                        const actions = card.querySelector('.cb-solicitud-actions');
+                        if (actions) actions.innerHTML = '<div class="cb-solicitud-footer">Vuelve a solicitarlo si aún lo necesitas.</div>';
+                    });
+                    // Selector de pólizas: desactivar botones
+                    contentDiv.querySelectorAll('.cb-poliza-select-btn').forEach(btn => {
+                        btn.disabled = true;
+                    });
+                    // Borrar chat: eliminar confirmación
+                    contentDiv.querySelectorAll('.cb-clear-confirm').forEach(el => el.remove());
+
                     // Hora del mensaje desde el servidor
                     const time = document.createElement('span');
                     time.className = 'message-time';
@@ -746,7 +764,7 @@ const APP = (() => {
                 this.addMessage('bot', this._dynamicGreeting(true));
 
                 // Scroll al final
-                DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+                Scroll.toBottom(false);
 
                 // Ocultar quick actions si ya hay historial
                 this._quickActionsVisible = false;
@@ -1234,6 +1252,14 @@ const APP = (() => {
             Voice.release();
             Cache.clear();
             Session.clear();
+            // Resetear formularios de login: mostrar NIF/móvil, ocultar OTP
+            DOM.otpForm.classList.add('hidden');
+            DOM.loginForm.classList.remove('hidden');
+            DOM.otpCode.value = '';
+            DOM.otpErrors.classList.add('hidden');
+            DOM.nifInput.value = '';
+            DOM.movilInput.value = '';
+            DOM.apiErrors.classList.add('hidden');
             UI.showScreen('login');
             // Reset chat con saludo genérico (sin nombre, aún no logueado)
             DOM.chatBox.innerHTML = `
@@ -1244,6 +1270,36 @@ const APP = (() => {
             DOM.quickActions.style.display = 'flex';
             Chat._quickActionsVisible = true;
             UI.showUserBadge(null);
+        }
+    };
+
+    // ===== SCROLL CONTROL =====
+    const Scroll = {
+        _userScrolledUp: false,
+        _threshold: 150,
+
+        init() {
+            DOM.chatBox.addEventListener('scroll', () => {
+                const { scrollTop, scrollHeight, clientHeight } = DOM.chatBox;
+                this._userScrolledUp = (scrollHeight - scrollTop - clientHeight) > this._threshold;
+                DOM.btnScrollDown.classList.toggle('hidden', !this._userScrolledUp);
+            });
+
+            DOM.btnScrollDown.addEventListener('click', () => {
+                this.toBottom();
+            });
+        },
+
+        toBottom(smooth = true) {
+            DOM.chatBox.scrollTo({
+                top: DOM.chatBox.scrollHeight,
+                behavior: smooth ? 'smooth' : 'instant'
+            });
+        },
+
+        /** Auto-scroll solo si el usuario no ha scrolleado arriba */
+        auto() {
+            if (!this._userScrolledUp) this.toBottom();
         }
     };
 
@@ -1347,7 +1403,7 @@ const APP = (() => {
                     + '<button class="cb-clear-btn cb-clear-btn--no" data-clear="no">No</button>'
                     + '</div></div>'
                 );
-                DOM.chatBox.scrollTop = DOM.chatBox.scrollHeight;
+                Scroll.auto();
             });
         }
 
@@ -1423,7 +1479,11 @@ const APP = (() => {
 
                 try {
                     const res = await fetch(`${CONFIG.apiWallet}?contrato=${encodeURIComponent(contrato)}`, {
-                        headers: Session.getAuthHeaders()
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Empresa': CONFIG.headers.Empresa
+                        }
                     });
 
                     if (!res.ok) {
@@ -1645,6 +1705,7 @@ const APP = (() => {
         bindEvents();
         Voice.init();
         Autocomplete.init();
+        Scroll.init();
 
         if (Session.init()) {
             // Validar con el backend que la sesión sigue válida (control de IP)
@@ -1652,21 +1713,19 @@ const APP = (() => {
                 const nif = localStorage.getItem('userNif');
                 const movil = localStorage.getItem('userMovil');
                 if (nif && movil) {
-                    const res = await fetch(`${CONFIG.apiUrl}/get-token`, {
+                    const res = await fetch(`${CONFIG.apiUrl}/validate-session`, {
                         method: 'POST',
                         headers: CONFIG.headers,
                         body: JSON.stringify({ nif, movil })
                     });
                     const data = await res.json();
-                    if (res.ok && data.token) {
+                    if (res.ok && data.valid && data.token) {
                         Session.save(data.token, data.nombre);
                         UI.showScreen('chat');
                         UI.showUserBadge(Session.nombre);
                         Chat.loadHistory();
-                    } else if (data.otp_required) {
-                        Session.clear();
-                        UI.showScreen('login');
                     } else {
+                        // Sesión inválida (expirada o IP diferente) → login
                         Session.clear();
                         UI.showScreen('login');
                     }
@@ -1676,7 +1735,8 @@ const APP = (() => {
                     Chat.loadHistory();
                 }
             } catch (err) {
-                console.error('[IP Check Error]', err);
+                console.error('[Session validation error]', err);
+                // Si falla la validación, permitir usar la sesión cacheada
                 UI.showScreen('chat');
                 UI.showUserBadge(Session.nombre);
                 Chat.loadHistory();

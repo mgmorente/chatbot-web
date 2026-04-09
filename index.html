@@ -179,6 +179,11 @@
                 </div>
             </main>
 
+            <!-- Botón scroll abajo -->
+            <button id="btn-scroll-down" class="btn-scroll-down hidden" title="Ir al final">
+                <i class="bi bi-chevron-down"></i>
+            </button>
+
             <!-- Acciones rapidas -->
             <div id="quick-actions" class="quick-actions">
                 <button class="quick-btn" data-msg="Que polizas tengo?">
@@ -324,6 +329,13 @@
                             </div>
                         </div>
                         <div class="fm-card">
+                            <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-wallet2"></i></div>
+                            <div>
+                                <strong>Tarjeta wallet digital</strong>
+                                <p>Genera una tarjeta digital de tu poliza para Apple Wallet o Google Pay directamente desde el chat.</p>
+                            </div>
+                        </div>
+                        <div class="fm-card">
                             <div class="fm-card-icon" style="background:#d1fae5;color:#10b981"><i class="bi bi-person-vcard"></i></div>
                             <div>
                                 <strong>Tarjetas de perfil y oficina</strong>
@@ -364,45 +376,10 @@
                             </div>
                         </div>
                         <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-lightbulb"></i></div>
-                            <div>
-                                <strong>Sugerencias inteligentes</strong>
-                                <p>Despues de cada respuesta, PACCMAN sugiere acciones relacionadas segun el contexto.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-emoji-smile"></i></div>
-                            <div>
-                                <strong>Saludo dinamico personalizado</strong>
-                                <p>PACCMAN te saluda por tu nombre adaptado a la hora del dia, con frases variadas en cada visita.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-clock-history"></i></div>
-                            <div>
-                                <strong>Historial de conversacion</strong>
-                                <p>Al reconectarte se recuperan tus conversaciones anteriores con separadores por fecha.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
                             <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-moon-stars"></i></div>
                             <div>
                                 <strong>Modo claro / oscuro</strong>
                                 <p>Cambia de tema con un clic. Recuerda tu preferencia y detecta la de tu dispositivo.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-geo-alt-fill"></i></div>
-                            <div>
-                                <strong>Google Maps integrado</strong>
-                                <p>Las tarjetas de oficina incluyen enlace directo a Google Maps para localizar tu oficina facilmente.</p>
-                            </div>
-                        </div>
-                        <div class="fm-card">
-                            <div class="fm-card-icon" style="background:#fef3c7;color:#f59e0b"><i class="bi bi-trash3"></i></div>
-                            <div>
-                                <strong>Limpiar conversacion</strong>
-                                <p>Boton para borrar la conversacion actual y empezar de cero con un saludo personalizado.</p>
                             </div>
                         </div>
                     </div>
@@ -414,8 +391,8 @@
                         <div class="fm-card">
                             <div class="fm-card-icon" style="background:#f3f4f6;color:#374151"><i class="bi bi-shield-lock"></i></div>
                             <div>
-                                <strong>Acceso seguro</strong>
-                                <p>Acceso con tu identificador y movil verificado. Tu sesion se cierra automaticamente por seguridad.</p>
+                                <strong>Verificacion OTP por email</strong>
+                                <p>Al iniciar sesion recibes un codigo de verificacion en tu email. Si cambias de red o dispositivo, se solicita de nuevo.</p>
                             </div>
                         </div>
                         <div class="fm-card">
@@ -460,34 +437,4 @@
             const dismissed = localStorage.getItem('pwa-dismissed');
             if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
 
-            banner.classList.remove('hidden');
-        });
-
-        if (installBtn) {
-            installBtn.addEventListener('click', async () => {
-                if (!deferredPrompt) return;
-                deferredPrompt.prompt();
-                const result = await deferredPrompt.userChoice;
-                console.log('[PWA] Instalacion:', result.outcome);
-                deferredPrompt = null;
-                banner.classList.add('hidden');
-            });
-        }
-
-        if (dismissBtn) {
-            dismissBtn.addEventListener('click', () => {
-                banner.classList.add('hidden');
-                localStorage.setItem('pwa-dismissed', Date.now().toString());
-            });
-        }
-
-        // Ocultar banner si ya esta instalada
-        window.addEventListener('appinstalled', () => {
-            banner.classList.add('hidden');
-            deferredPrompt = null;
-            console.log('[PWA] App instalada!');
-        });
-    </script>
-</body>
-
-</html>
+            banner.classList.remove(
