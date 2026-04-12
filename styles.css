@@ -820,6 +820,7 @@ html, body {
 .message.bot:has(.cb-poliza-selector),
 .message.bot:has(.cb-siniestro-form) {
     max-width: 95%;
+    width: 95%;
 }
 
 /* Hora y TTS siempre al final en mensajes con tarjetas */

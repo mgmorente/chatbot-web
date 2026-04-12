@@ -1523,10 +1523,8 @@ const APP = (() => {
             const actionBtn = e.target.closest('.cb-action-btn');
             if (!actionBtn) return;
 
-            // Interceptar enlaces de siniestro (href externo) → formulario inline
-            const href = actionBtn.getAttribute('href') || '';
-            const text = actionBtn.textContent.toLowerCase();
-            if (href.includes('/siniestro') || text.includes('siniestro')) {
+            // Interceptar solo enlaces <a> con href externo de siniestro → formulario inline
+            if (actionBtn.tagName === 'A' && actionBtn.getAttribute('href')?.includes('/siniestro')) {
                 e.preventDefault();
                 Chat.send('Quiero abrir un siniestro');
                 return;
