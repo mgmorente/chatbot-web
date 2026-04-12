@@ -280,6 +280,7 @@ const APP = (() => {
         DOM.featuresModal  = document.getElementById('features-modal');
         DOM.featuresClose  = document.getElementById('features-modal-close');
         DOM.btnScrollDown  = document.getElementById('btn-scroll-down');
+        DOM.btnInstallPwa  = document.getElementById('btn-install-pwa');
     }
 
     // ===== SESSION MODULE =====
@@ -1451,6 +1452,48 @@ const APP = (() => {
                 if (confirmDiv) confirmDiv.remove();
             }
         });
+
+        // ===== PWA: Instalar en móvil =====
+        let _deferredInstallPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            _deferredInstallPrompt = e;
+            if (DOM.btnInstallPwa) DOM.btnInstallPwa.style.display = '';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            _deferredInstallPrompt = null;
+            if (DOM.btnInstallPwa) DOM.btnInstallPwa.style.display = 'none';
+            UI.toast('App instalada correctamente', 'success');
+        });
+
+        if (DOM.btnInstallPwa) {
+            DOM.btnInstallPwa.addEventListener('click', async () => {
+                DOM.avatarDropdown?.classList.add('hidden');
+                if (_deferredInstallPrompt) {
+                    _deferredInstallPrompt.prompt();
+                    const { outcome } = await _deferredInstallPrompt.userChoice;
+                    if (outcome === 'accepted') {
+                        _deferredInstallPrompt = null;
+                        DOM.btnInstallPwa.style.display = 'none';
+                    }
+                } else {
+                    // Fallback: instrucciones manuales (iOS, navegadores sin soporte)
+                    Chat.addMessage('bot',
+                        '<b>Para instalar la app en tu dispositivo:</b><br><br>'
+                        + '<b>Android (Chrome):</b> Pulsa el menú ⋮ y selecciona "Añadir a pantalla de inicio".<br><br>'
+                        + '<b>iPhone/iPad (Safari):</b> Pulsa el botón compartir <i class="bi bi-box-arrow-up"></i> y selecciona "Añadir a pantalla de inicio".'
+                    );
+                }
+            });
+
+            // Mostrar el botón si la app ya es instalable (standalone no activo)
+            if (!window.matchMedia('(display-mode: standalone)').matches && !navigator.standalone) {
+                // En iOS/Safari no hay beforeinstallprompt, mostrar siempre para dar instrucciones
+                const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+                if (isIos) DOM.btnInstallPwa.style.display = '';
+            }
+        }
 
         // Delegated click: data-solicitud links (from API HTML responses)
         document.addEventListener('click', (e) => {
