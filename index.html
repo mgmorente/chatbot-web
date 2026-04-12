@@ -440,4 +440,27 @@
             const dismissed = localStorage.getItem('pwa-dismissed');
             if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) return;
 
-            banner.classList.remove(
+            if (banner) banner.classList.remove('hidden');
+        });
+
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (!deferredPrompt) return;
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    deferredPrompt = null;
+                    if (banner) banner.classList.add('hidden');
+                }
+            });
+        }
+
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => {
+                if (banner) banner.classList.add('hidden');
+                localStorage.setItem('pwa-dismissed', Date.now().toString());
+            });
+        }
+    </script>
+</body>
+</html>
