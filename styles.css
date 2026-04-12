@@ -817,8 +817,32 @@ html, body {
 .message.bot:has(.cb-pagos-resumen),
 .message.bot:has(.cb-telefonos),
 .message.bot:has(.cb-solicitud),
-.message.bot:has(.cb-poliza-selector) {
+.message.bot:has(.cb-poliza-selector),
+.message.bot:has(.cb-siniestro-form) {
     max-width: 95%;
+}
+
+/* Hora y TTS siempre al final en mensajes con tarjetas */
+.message.bot .message-content:has(.cb-siniestro-form),
+.message.bot .message-content:has(.cb-poliza-selector),
+.message.bot .message-content:has(.cb-solicitud) {
+    display: flex;
+    flex-direction: column;
+}
+
+.message.bot .message-content:has(.cb-siniestro-form) > .btn-tts,
+.message.bot .message-content:has(.cb-poliza-selector) > .btn-tts,
+.message.bot .message-content:has(.cb-solicitud) > .btn-tts {
+    align-self: flex-end;
+    float: none;
+    order: 99;
+    margin: 4px 0 0;
+}
+
+.message.bot .message-content:has(.cb-siniestro-form) > .message-time,
+.message.bot .message-content:has(.cb-poliza-selector) > .message-time,
+.message.bot .message-content:has(.cb-solicitud) > .message-time {
+    order: 100;
 }
 
 .message-content {
@@ -1739,6 +1763,420 @@ html, body {
 .cb-solicitud-btn--cancel:hover:not(:disabled) {
     background: #d1d5db;
     color: var(--text);
+}
+
+/* ---- Siniestro inline form ---- */
+.cb-siniestro-form {
+    background: var(--surface);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.cb-siniestro-form-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    color: #92400e;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.cb-siniestro-form-header i {
+    font-size: 18px;
+}
+
+[data-theme="dark"] .cb-siniestro-form-header {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(245, 158, 11, 0.12));
+    color: #fbbf24;
+}
+
+.cb-siniestro-form-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cb-siniestro-form-poliza-info {
+    font-size: 12px;
+    color: var(--text-secondary);
+    padding: 8px 12px;
+    background: var(--primary-50, #eff6ff);
+    border: 1px solid var(--primary-light, #bfdbfe);
+    border-radius: var(--radius);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+[data-theme="dark"] .cb-siniestro-form-poliza-info {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
+.cb-siniestro-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.cb-siniestro-form-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-light);
+}
+
+.cb-siniestro-form-input,
+.cb-siniestro-form-date,
+.cb-siniestro-form-textarea {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--text);
+    background: var(--surface);
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.cb-siniestro-form-input:focus,
+.cb-siniestro-form-date:focus,
+.cb-siniestro-form-textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.cb-siniestro-form-textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.cb-siniestro-form-textarea::placeholder {
+    color: var(--text-placeholder);
+}
+
+.cb-siniestro-form-input:disabled,
+.cb-siniestro-form-date:disabled,
+.cb-siniestro-form-textarea:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.cb-siniestro-form-loading {
+    padding: 12px 0;
+    font-size: 13.5px;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cb-siniestro-form-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    justify-content: flex-end;
+}
+
+.cb-siniestro-form-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.cb-siniestro-form-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.cb-siniestro-form-btn--cancel {
+    background: #e5e7eb;
+    color: #4b5563;
+}
+
+.cb-siniestro-form-btn--cancel:hover:not(:disabled) {
+    background: #d1d5db;
+    color: var(--text);
+}
+
+[data-theme="dark"] .cb-siniestro-form-btn--cancel {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
+}
+
+.cb-siniestro-form-btn--submit {
+    background: var(--primary);
+    color: white;
+}
+
+.cb-siniestro-form-btn--submit:hover:not(:disabled) {
+    background: var(--primary-dark);
+}
+
+.cb-siniestro-form-btn--submit:disabled {
+    background: var(--primary);
+    opacity: 0.4;
+}
+
+.cb-siniestro-form-footer {
+    padding: 10px 16px;
+    background: var(--primary-50);
+    font-size: 12.5px;
+    color: var(--text-secondary);
+}
+
+/* Success state */
+.cb-siniestro-form--success .cb-siniestro-form-header {
+    background: linear-gradient(135deg, #f0fdf4, #dcfce7);
+    color: #15803d;
+}
+
+[data-theme="dark"] .cb-siniestro-form--success .cb-siniestro-form-header {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(16, 185, 129, 0.1));
+    color: #34d399;
+}
+
+/* Cancelled state */
+.cb-siniestro-form--cancelled .cb-siniestro-form-header {
+    background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+    color: #6b7280;
+}
+
+[data-theme="dark"] .cb-siniestro-form--cancelled .cb-siniestro-form-header {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+    color: var(--text-secondary);
+}
+
+/* ---- Siniestro: resumen post-registro ---- */
+.cb-siniestro-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cb-siniestro-summary-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.cb-siniestro-summary-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 110px;
+    color: var(--text-light);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+    padding-top: 1px;
+}
+
+.cb-siniestro-summary-label i {
+    font-size: 13px;
+}
+
+.cb-siniestro-summary-value {
+    color: var(--text);
+    word-break: break-word;
+}
+
+/* ---- Siniestro: selector de imágenes ---- */
+.cb-siniestro-images {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+}
+
+.cb-siniestro-images-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    width: 72px;
+    height: 72px;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text-light);
+    font-size: 11px;
+    transition: all var(--transition);
+}
+
+.cb-siniestro-images-add i {
+    font-size: 20px;
+}
+
+.cb-siniestro-images-add:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--primary-50);
+}
+
+.cb-siniestro-images-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cb-siniestro-images-thumb {
+    position: relative;
+    width: 72px;
+    height: 72px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.cb-siniestro-images-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cb-siniestro-images-remove {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    padding: 0;
+    line-height: 1;
+    transition: background var(--transition);
+}
+
+.cb-siniestro-images-remove:hover {
+    background: rgba(220, 38, 38, 0.85);
+}
+
+/* ---- Inline Picker (póliza/causa buscador) ---- */
+.cb-picker-container {
+    position: relative;
+}
+
+.cb-picker-list {
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0;
+    max-height: 180px;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    z-index: 10;
+    position: relative;
+}
+
+.cb-picker-list:empty {
+    display: none;
+}
+
+.cb-picker-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+    color: var(--text);
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.cb-picker-item:last-child {
+    border-bottom: none;
+}
+
+.cb-picker-item:hover,
+.cb-picker-item.active {
+    background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="dark"] .cb-picker-item:hover,
+[data-theme="dark"] .cb-picker-item.active {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.cb-picker-item small {
+    display: block;
+    width: 100%;
+    font-size: 11.5px;
+    color: var(--text-light);
+    margin-top: 1px;
+}
+
+.cb-picker-hint {
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-light);
+    font-style: italic;
+}
+
+.cb-picker-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    font-size: 13px;
+    color: var(--text);
+    flex-wrap: wrap;
+}
+
+[data-theme="dark"] .cb-picker-chip {
+    background: rgba(59, 130, 246, 0.12);
+    border-color: rgba(59, 130, 246, 0.25);
+}
+
+.cb-picker-clear {
+    background: none;
+    border: none;
+    color: var(--text-light);
+    cursor: pointer;
+    margin-left: auto;
+    padding: 2px 4px;
+    font-size: 14px;
+    line-height: 1;
+    transition: color 0.15s;
+}
+
+.cb-picker-clear:hover {
+    color: #ef4444;
 }
 
 /* ---- Action prompt buttons (siniestros, etc.) ---- */
@@ -2807,7 +3245,8 @@ a.cb-action-btn:hover {
     .message.bot:has(.cb-pagos-resumen),
     .message.bot:has(.cb-telefonos),
     .message.bot:has(.cb-solicitud),
-    .message.bot:has(.cb-poliza-selector) {
+    .message.bot:has(.cb-poliza-selector),
+    .message.bot:has(.cb-siniestro-form) {
         max-width: 100%;
     }
 

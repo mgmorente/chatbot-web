@@ -741,6 +741,18 @@ const APP = (() => {
                     contentDiv.querySelectorAll('.cb-poliza-select-btn').forEach(btn => {
                         btn.disabled = true;
                     });
+                    // Formularios de siniestro: desactivar
+                    contentDiv.querySelectorAll('.cb-siniestro-form').forEach(form => {
+                        if (!form.classList.contains('cb-siniestro-form--success') && !form.classList.contains('cb-siniestro-form--cancelled')) {
+                            form.classList.add('cb-siniestro-form--cancelled');
+                            const header = form.querySelector('.cb-siniestro-form-header');
+                            if (header) header.innerHTML = '<i class="bi bi-clock-history"></i> Formulario expirado';
+                            const body = form.querySelector('.cb-siniestro-form-body');
+                            if (body) body.remove();
+                            const actions = form.querySelector('.cb-siniestro-form-actions');
+                            if (actions) actions.innerHTML = '<div class="cb-siniestro-form-footer">Vuelve a solicitarlo si aún lo necesitas.</div>';
+                        }
+                    });
                     // Borrar chat: eliminar confirmación
                     contentDiv.querySelectorAll('.cb-clear-confirm').forEach(el => el.remove());
 
@@ -1163,6 +1175,13 @@ const APP = (() => {
         _pendingNif: null,
         _pendingMovil: null,
 
+        /** Guarda NIF/móvil en localStorage para validateSession en próximos reloads */
+        _saveCredentials(nif, movil) {
+            try {
+                localStorage.setItem('userNif', nif);
+                localStorage.setItem('userMovil', movil);
+            } catch { /* private browsing */ }
+        },
 
         async login(nif, movil) {
             UI.clearLoginError();
@@ -1180,6 +1199,7 @@ const APP = (() => {
                 if (res.ok && data.token) {
                     // Sesión reciente → acceso directo sin OTP
                     Session.save(data.token, data.nombre);
+                    this._saveCredentials(nif, movil);
                     UI.showScreen('chat');
                     UI.showUserBadge(Session.nombre);
                     Chat.loadHistory();
@@ -1220,7 +1240,12 @@ const APP = (() => {
                     })
                 });
 
-                const data = await res.json();
+                let data;
+                try {
+                    data = await res.json();
+                } catch {
+                    data = {};
+                }
 
                 if (res.ok && data.token) {
                     Session.save(data.token, data.nombre);
@@ -1232,13 +1257,15 @@ const APP = (() => {
                     this._pendingNif = null;
                     this._pendingMovil = null;
                 } else {
-                    DOM.otpErrors.textContent = data.error || 'Código incorrecto';
+                    const errorMsg = data.error || 'Código incorrecto. Inténtalo de nuevo.';
+                    DOM.otpErrors.textContent = errorMsg;
                     DOM.otpErrors.classList.remove('hidden');
                     DOM.otpCode.value = '';
                     DOM.otpCode.focus();
+                    console.warn('[OTP] Backend error:', res.status, errorMsg);
                 }
             } catch (err) {
-                DOM.otpErrors.textContent = 'No se pudo conectar con el servidor';
+                DOM.otpErrors.textContent = 'No se pudo conectar con el servidor. Comprueba tu conexión.';
                 DOM.otpErrors.classList.remove('hidden');
                 console.error('[OTP Error]', err);
             } finally {
@@ -1437,6 +1464,11 @@ const APP = (() => {
             const parts = solicitud.split('#');
             if (parts.length === 3 && parts[0] === 'ecliente') {
                 const [, entidad, id] = parts;
+                // Siniestro: abrir formulario inline en vez de URL externa
+                if (entidad === 'siniestro') {
+                    Chat.send('Quiero abrir un siniestro');
+                    return;
+                }
                 window.open(`${CONFIG.eclienteUrl}/access/${entidad}/${Session.token}/${id}`);
                 return;
             }
@@ -1447,6 +1479,16 @@ const APP = (() => {
         DOM.chatBox.addEventListener('click', (e) => {
             const actionBtn = e.target.closest('.cb-action-btn');
             if (!actionBtn) return;
+
+            // Interceptar enlaces de siniestro (href externo) → formulario inline
+            const href = actionBtn.getAttribute('href') || '';
+            const text = actionBtn.textContent.toLowerCase();
+            if (href.includes('/siniestro') || text.includes('siniestro')) {
+                e.preventDefault();
+                Chat.send('Quiero abrir un siniestro');
+                return;
+            }
+
             const msg = actionBtn.dataset.msg;
             if (msg) {
                 // Deshabilitar todos los botones del grupo
@@ -1587,10 +1629,372 @@ const APP = (() => {
                 return;
             }
 
+            // Flujo siniestro: abrir formulario inline bajo el selector
+            if (accion === 'siniestro') {
+                selectBtn.textContent = 'Seleccionada';
+                const ramoTipo = selectBtn.dataset.ramoTipo || '';
+                const contrato = selectBtn.dataset.contrato || poliza;
+                // Extraer datos de la opción seleccionada para mostrar en el formulario
+                const optionEl = selectBtn.closest('.cb-poliza-option');
+                const polizaInfo = {
+                    ramo: optionEl?.querySelector('.cb-poliza-option-ramo')?.textContent?.trim() || '',
+                    cia: optionEl?.querySelector('.cb-poliza-option-cia')?.textContent?.trim() || '',
+                    meta: optionEl?.querySelector('.cb-poliza-option-meta')?.textContent?.trim() || ''
+                };
+                // Ocultar el listado de pólizas tras seleccionar
+                selector.style.display = 'none';
+                SiniestroForm.loadForm(selector, contrato, poliza, desc, ramoTipo, polizaInfo);
+                return;
+            }
+
             // Flujo anulación/modificación: enviar mensaje al bot
             selectBtn.textContent = 'Seleccionada';
             const msg = `Quiero ${accion} la póliza ${poliza} (${desc})`;
             Chat.send(msg);
+        });
+
+        // ===== FORMULARIO SINIESTRO (inline bajo selector de póliza) =====
+        const SiniestroForm = {
+            _allCausas: null, // cache de causas
+
+            /** Inicializa un picker inline (buscador + lista + chip) */
+            _initPicker(container, items, opts) {
+                const hidden = container.querySelector('input[type="hidden"]');
+                const search = container.querySelector('.cb-picker-search');
+                const list = container.querySelector('.cb-picker-list');
+                const selectedEl = container.querySelector('.cb-picker-selected');
+                let activeIdx = -1, picked = null, onPickCb = null;
+
+                const { placeholder, searchFields, renderItem, renderChip } = opts;
+                search.setAttribute('placeholder', placeholder);
+
+                function render(term = '') {
+                    const t = term.toLowerCase();
+                    const filtered = t ? items.filter(it => searchFields(it).toLowerCase().includes(t)) : items;
+                    activeIdx = -1;
+                    if (!filtered.length) { list.innerHTML = '<li class="cb-picker-hint">Sin resultados</li>'; return; }
+                    list.innerHTML = filtered.map(it => renderItem(it)).join('');
+                    list.querySelectorAll('.cb-picker-item').forEach(el => {
+                        el.addEventListener('click', () => pick(el.dataset.value));
+                    });
+                }
+
+                function pick(value) {
+                    const found = items.find(x => String(x.codigo ?? x.id ?? '') === String(value));
+                    if (!found) return;
+                    picked = found;
+                    hidden.value = value;
+                    selectedEl.innerHTML = `<div class="cb-picker-chip">${renderChip(found)}<button type="button" class="cb-picker-clear" title="Cambiar"><i class="bi bi-x-lg"></i></button></div>`;
+                    selectedEl.style.display = '';
+                    search.style.display = 'none';
+                    list.innerHTML = '';
+                    selectedEl.querySelector('.cb-picker-clear').addEventListener('click', clear);
+                    if (onPickCb) onPickCb(found);
+                }
+
+                function clear() {
+                    picked = null;
+                    hidden.value = '';
+                    selectedEl.style.display = 'none';
+                    selectedEl.innerHTML = '';
+                    search.style.display = '';
+                    search.value = '';
+                    list.innerHTML = '';
+                    if (onPickCb) onPickCb(null);
+                }
+
+                search.addEventListener('input', () => render(search.value.trim()));
+                search.addEventListener('focus', () => { if (!picked) render(search.value.trim()); });
+                search.addEventListener('keydown', (e) => {
+                    const els = list.querySelectorAll('.cb-picker-item');
+                    if (!els.length) return;
+                    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = activeIdx < els.length - 1 ? activeIdx + 1 : 0; }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = activeIdx > 0 ? activeIdx - 1 : els.length - 1; }
+                    else if (e.key === 'Enter') { e.preventDefault(); if (activeIdx >= 0) pick(els[activeIdx].dataset.value); return; }
+                    else return;
+                    els.forEach((el, i) => { el.classList.toggle('active', i === activeIdx); if (i === activeIdx) el.scrollIntoView({ block: 'nearest' }); });
+                });
+
+                // Cerrar lista al hacer click fuera
+                document.addEventListener('click', (e) => { if (!container.contains(e.target)) list.innerHTML = ''; });
+
+                return {
+                    get value() { return picked; },
+                    get rawValue() { return hidden.value; },
+                    onPick(cb) { onPickCb = cb; },
+                    setItems(newItems) { items = newItems; clear(); },
+                    clear,
+                };
+            },
+
+            /** Carga causas (con cache) y muestra el formulario bajo el selector */
+            async loadForm(selectorEl, contrato, ciaPoliza, polizaDesc, ramoTipo, polizaInfo) {
+                const msgContent = selectorEl.closest('.message-content');
+
+                // Mostrar spinner bajo el selector
+                const loader = document.createElement('div');
+                loader.className = 'cb-siniestro-form-loading';
+                loader.innerHTML = '<i class="bi bi-hourglass-split"></i> Cargando formulario...';
+                msgContent.appendChild(loader);
+
+                try {
+                    // Cargar causas (solo la primera vez, luego cache)
+                    if (!this._allCausas) {
+                        const res = await fetch(`${CONFIG.apiUrl}/presiniestro-data`, { headers: Session.getAuthHeaders() });
+                        if (!res.ok) throw new Error('Error al cargar datos');
+                        const data = await res.json();
+                        this._allCausas = data.causas || [];
+                    }
+
+                    // Filtrar causas por ramo_tipo de la póliza seleccionada
+                    const causasFiltradas = ramoTipo
+                        ? this._allCausas.filter(c => c.tipo && c.tipo.includes(ramoTipo))
+                        : this._allCausas;
+
+                    loader.remove();
+
+                    const today = new Date().toISOString().split('T')[0];
+
+                    // Bloque informativo con datos de la póliza (orden: póliza, cia, ramo, riesgo)
+                    // meta puede contener "Póliza: XXX · Dirección · Desde: fecha"
+                    const metaParts = (polizaInfo?.meta || '').split('·').map(s => s.trim()).filter(Boolean);
+                    const riesgo = metaParts.find(p => !p.startsWith('Póliza:') && !p.startsWith('Desde:')) || '';
+                    const infoItems = [ciaPoliza, polizaInfo?.cia, polizaInfo?.ramo, riesgo].filter(Boolean);
+                    const polizaInfoHtml = infoItems.length
+                        ? `<div class="cb-siniestro-form-poliza-info">${infoItems.join(' · ')}</div>`
+                        : '';
+
+                    const formHtml = `
+                        <div class="cb-siniestro-form" data-contrato="${contrato}" data-cia-poliza="${ciaPoliza}" data-poliza-desc="${polizaDesc}">
+                            <div class="cb-siniestro-form-header"><i class="bi bi-shield-exclamation"></i> Registro de siniestro</div>
+                            <div class="cb-siniestro-form-body">
+                                ${polizaInfoHtml}
+                                <div class="cb-siniestro-form-group">
+                                    <label class="cb-siniestro-form-label">Causa del siniestro</label>
+                                    <div class="cb-picker-container cb-picker-causa">
+                                        <input type="hidden" name="causa">
+                                        <input type="text" class="cb-picker-search cb-siniestro-form-input" autocomplete="off">
+                                        <ul class="cb-picker-list"></ul>
+                                        <div class="cb-picker-selected" style="display:none"></div>
+                                    </div>
+                                </div>
+                                <div class="cb-siniestro-form-group">
+                                    <label class="cb-siniestro-form-label">Fecha del siniestro</label>
+                                    <input type="date" class="cb-siniestro-form-date cb-siniestro-form-input" max="${today}">
+                                </div>
+                                <div class="cb-siniestro-form-group">
+                                    <label class="cb-siniestro-form-label">Descripción de lo ocurrido</label>
+                                    <textarea class="cb-siniestro-form-textarea cb-siniestro-form-input" placeholder="Describe brevemente qué ha ocurrido..." rows="3"></textarea>
+                                </div>
+                                <div class="cb-siniestro-form-group">
+                                    <label class="cb-siniestro-form-label">Imágenes (opcional)</label>
+                                    <div class="cb-siniestro-images">
+                                        <label class="cb-siniestro-images-add" title="Añadir imágenes">
+                                            <i class="bi bi-camera"></i>
+                                            <span>Añadir fotos</span>
+                                            <input type="file" class="cb-siniestro-images-input" accept="image/*" multiple hidden>
+                                        </label>
+                                        <div class="cb-siniestro-images-preview"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="cb-siniestro-form-actions">
+                                <button class="cb-siniestro-form-btn cb-siniestro-form-btn--cancel"><i class="bi bi-x-lg"></i> Cancelar</button>
+                                <button class="cb-siniestro-form-btn cb-siniestro-form-btn--submit" disabled><i class="bi bi-check-lg"></i> Registrar siniestro</button>
+                            </div>
+                        </div>`;
+
+                    msgContent.insertAdjacentHTML('beforeend', formHtml);
+                    const form = msgContent.querySelector('.cb-siniestro-form');
+
+                    // Inicializar picker de causas con las causas ya filtradas
+                    const causaPicker = this._initPicker(
+                        form.querySelector('.cb-picker-causa'),
+                        causasFiltradas,
+                        {
+                            placeholder: 'Busca una causa...',
+                            searchFields: c => c.nombre,
+                            renderItem: c => `<li class="cb-picker-item" data-value="${c.codigo}">${c.nombre}</li>`,
+                            renderChip: c => c.nombre,
+                        }
+                    );
+
+                    // Validación en tiempo real
+                    const updateValidation = () => this._updateSubmit(form);
+                    causaPicker.onPick(updateValidation);
+                    form.addEventListener('input', updateValidation);
+                    form.addEventListener('change', updateValidation);
+                    // Escuchar directamente en fecha y textarea por si no burbujean
+                    form.querySelector('.cb-siniestro-form-date')?.addEventListener('input', updateValidation);
+                    form.querySelector('.cb-siniestro-form-date')?.addEventListener('change', updateValidation);
+                    form.querySelector('.cb-siniestro-form-textarea')?.addEventListener('input', updateValidation);
+
+                    // Selector de imágenes
+                    const imgInput = form.querySelector('.cb-siniestro-images-input');
+                    const imgPreview = form.querySelector('.cb-siniestro-images-preview');
+                    const imgFiles = []; // almacena los File seleccionados
+                    form._siniestroImages = imgFiles; // referencia para el envío
+
+                    imgInput.addEventListener('change', () => {
+                        for (const file of imgInput.files) {
+                            if (!file.type.startsWith('image/')) continue;
+                            if (imgFiles.length >= 5) break; // máximo 5 imágenes
+                            imgFiles.push(file);
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                                const idx = imgFiles.indexOf(file);
+                                const thumb = document.createElement('div');
+                                thumb.className = 'cb-siniestro-images-thumb';
+                                thumb.innerHTML = `<img src="${ev.target.result}" alt=""><button type="button" class="cb-siniestro-images-remove" data-idx="${idx}" title="Quitar"><i class="bi bi-x-lg"></i></button>`;
+                                imgPreview.appendChild(thumb);
+                            };
+                            reader.readAsDataURL(file);
+                        }
+                        imgInput.value = '';
+                        // Ocultar botón añadir si ya hay 5
+                        form.querySelector('.cb-siniestro-images-add').style.display = imgFiles.length >= 5 ? 'none' : '';
+                    });
+
+                    imgPreview.addEventListener('click', (ev) => {
+                        const removeBtn = ev.target.closest('.cb-siniestro-images-remove');
+                        if (!removeBtn) return;
+                        const idx = parseInt(removeBtn.dataset.idx, 10);
+                        imgFiles.splice(idx, 1);
+                        // Reconstruir previews
+                        imgPreview.innerHTML = '';
+                        imgFiles.forEach((f, i) => {
+                            const reader = new FileReader();
+                            reader.onload = (e2) => {
+                                const thumb = document.createElement('div');
+                                thumb.className = 'cb-siniestro-images-thumb';
+                                thumb.innerHTML = `<img src="${e2.target.result}" alt=""><button type="button" class="cb-siniestro-images-remove" data-idx="${i}" title="Quitar"><i class="bi bi-x-lg"></i></button>`;
+                                imgPreview.appendChild(thumb);
+                            };
+                            reader.readAsDataURL(f);
+                        });
+                        form.querySelector('.cb-siniestro-images-add').style.display = imgFiles.length >= 5 ? 'none' : '';
+                    });
+
+                    // Bloquear Enter excepto en picker
+                    form.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' && !e.target.classList.contains('cb-picker-search')) e.preventDefault();
+                    });
+
+                    Scroll.auto();
+
+                } catch (err) {
+                    console.error('Error cargando formulario siniestro:', err);
+                    loader.innerHTML = '<i class="bi bi-exclamation-triangle"></i> No se pudo cargar el formulario. Inténtalo de nuevo.';
+                }
+            },
+
+            /** Actualiza estado del botón submit */
+            _updateSubmit(form) {
+                const causa = form.querySelector('[name="causa"]')?.value || '';
+                const fecha = form.querySelector('.cb-siniestro-form-date')?.value || '';
+                const desc = (form.querySelector('.cb-siniestro-form-textarea')?.value || '').trim();
+                const btn = form.querySelector('.cb-siniestro-form-btn--submit');
+                const valid = causa.length > 0 && fecha.length > 0 && desc.length >= 10;
+                if (btn) btn.disabled = !valid;
+            },
+        };
+
+        // Formulario siniestro: enviar o cancelar
+        DOM.chatBox.addEventListener('click', async (e) => {
+            // Cancelar
+            const cancelBtn = e.target.closest('.cb-siniestro-form-btn--cancel');
+            if (cancelBtn) {
+                const form = cancelBtn.closest('.cb-siniestro-form');
+                form.classList.add('cb-siniestro-form--cancelled');
+                form.querySelector('.cb-siniestro-form-header').innerHTML = '<i class="bi bi-x-circle"></i> Registro cancelado';
+                const body = form.querySelector('.cb-siniestro-form-body');
+                if (body) body.remove();
+                const actions = form.querySelector('.cb-siniestro-form-actions');
+                if (actions) actions.remove();
+                Chat.addMessage('bot', 'De acuerdo, he cancelado el registro de siniestro. Si lo necesitas más adelante, solo dímelo.');
+                return;
+            }
+
+            // Enviar
+            const submitBtn = e.target.closest('.cb-siniestro-form-btn--submit');
+            if (!submitBtn || submitBtn.disabled) return;
+
+            const form = submitBtn.closest('.cb-siniestro-form');
+            const contrato = form.dataset.contrato;
+            const ciaPoliza = form.dataset.ciaPoliza;
+            const causaVal = form.querySelector('[name="causa"]').value;
+            const causaText = form.querySelector('.cb-picker-chip')?.textContent?.trim() || causaVal;
+            const fecha = form.querySelector('.cb-siniestro-form-date').value;
+            const descripcion = form.querySelector('.cb-siniestro-form-textarea').value.trim();
+            const imgFiles = form._siniestroImages || [];
+
+            if (!contrato || !causaVal || !fecha || descripcion.length < 10) return;
+
+            // Obtener descripción de la póliza
+            const headerText = form.dataset.polizaDesc || ciaPoliza;
+
+            // Deshabilitar formulario
+            form.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Registrando...';
+
+            try {
+                const formData = new FormData();
+                formData.append('poliza', contrato);
+                formData.append('causa', causaVal);
+                formData.append('fecha', fecha);
+                formData.append('descripcion', descripcion);
+                // Añadir imágenes si las hay
+                imgFiles.forEach(file => formData.append('imagenes', file));
+
+                const authHeaders = { ...Session.getAuthHeaders() };
+                // Eliminar Content-Type para que el navegador lo ponga con boundary de multipart
+                delete authHeaders['Content-Type'];
+                const res = await fetch(`${CONFIG.apiUrl}/presiniestro`, {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: formData
+                });
+
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.error || 'Error al registrar');
+                }
+
+                form.classList.add('cb-siniestro-form--success');
+                form.querySelector('.cb-siniestro-form-header').innerHTML = '<i class="bi bi-check-circle-fill"></i> Siniestro registrado';
+
+                // Formatear fecha legible
+                const fechaObj = new Date(fecha + 'T00:00:00');
+                const fechaFmt = fechaObj.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // Resumen con los datos registrados
+                const imgCount = imgFiles.length;
+                const imgBadge = imgCount > 0
+                    ? `<div class="cb-siniestro-summary-row"><span class="cb-siniestro-summary-label"><i class="bi bi-camera"></i> Imágenes</span><span class="cb-siniestro-summary-value">${imgCount} foto${imgCount > 1 ? 's' : ''} adjunta${imgCount > 1 ? 's' : ''}</span></div>`
+                    : '';
+
+                const bodyEl = form.querySelector('.cb-siniestro-form-body');
+                if (bodyEl) {
+                    bodyEl.innerHTML = `
+                        <div class="cb-siniestro-summary">
+                            <div class="cb-siniestro-summary-row"><span class="cb-siniestro-summary-label"><i class="bi bi-file-earmark-text"></i> Póliza</span><span class="cb-siniestro-summary-value">${headerText}</span></div>
+                            <div class="cb-siniestro-summary-row"><span class="cb-siniestro-summary-label"><i class="bi bi-exclamation-triangle"></i> Causa</span><span class="cb-siniestro-summary-value">${causaText}</span></div>
+                            <div class="cb-siniestro-summary-row"><span class="cb-siniestro-summary-label"><i class="bi bi-calendar-event"></i> Fecha</span><span class="cb-siniestro-summary-value">${fechaFmt}</span></div>
+                            <div class="cb-siniestro-summary-row"><span class="cb-siniestro-summary-label"><i class="bi bi-chat-left-text"></i> Descripción</span><span class="cb-siniestro-summary-value">${descripcion}</span></div>
+                            ${imgBadge}
+                        </div>`;
+                }
+                form.querySelector('.cb-siniestro-form-actions').innerHTML = '<div class="cb-siniestro-form-footer"><i class="bi bi-info-circle"></i> Tu ejecutiva de cuentas revisará el parte y se pondrá en contacto contigo.</div>';
+
+
+            } catch (err) {
+                console.error('Error registrando siniestro:', err);
+                form.querySelectorAll('input, textarea').forEach(el => el.disabled = false);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Registrar siniestro';
+                form.querySelector('.cb-siniestro-form-btn--cancel').disabled = false;
+                Chat.addMessage('bot', `No he podido registrar el siniestro. Inténtalo de nuevo o contacta con tu oficina.`);
+            }
         });
 
         // Solicitud de cambio: confirmar / cancelar
