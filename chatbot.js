@@ -20,6 +20,43 @@ const APP = (() => {
         }
     };
 
+    // ===== APP LOCK (bloquea la UI durante operaciones críticas) =====
+    const AppLock = {
+        _locked: false,
+        _overlay: null,
+
+        /** Devuelve true si la app está bloqueada */
+        get isLocked() { return this._locked; },
+
+        /** Crea el overlay si no existe */
+        _ensureOverlay() {
+            if (this._overlay) return;
+            const el = document.createElement('div');
+            el.className = 'cb-app-lock-overlay';
+            el.innerHTML = `
+                <div class="cb-app-lock-content">
+                    <div class="cb-app-lock-spinner"></div>
+                    <span class="cb-app-lock-text">Registrando siniestro…</span>
+                </div>`;
+            document.body.appendChild(el);
+            this._overlay = el;
+        },
+
+        /** Bloquea toda la interfaz */
+        lock(msg) {
+            this._locked = true;
+            this._ensureOverlay();
+            if (msg) this._overlay.querySelector('.cb-app-lock-text').textContent = msg;
+            this._overlay.classList.add('cb-app-lock-overlay--visible');
+        },
+
+        /** Desbloquea la interfaz */
+        unlock() {
+            this._locked = false;
+            if (this._overlay) this._overlay.classList.remove('cb-app-lock-overlay--visible');
+        }
+    };
+
     // ===== RESPONSE CACHE =====
     const Cache = {
         _store: new Map(),
@@ -426,6 +463,7 @@ const APP = (() => {
     // ===== CHAT MODULE =====
     const Chat = {
         _quickActionsVisible: true,
+        _offTopicCount: 0,
 
         _formatMarkdown(text) {
             // Si ya contiene HTML de nuestras cards, no tocar
@@ -467,6 +505,9 @@ const APP = (() => {
             const content = document.createElement('div');
             content.className = 'message-content';
             content.innerHTML = type === 'bot' ? this._formatMarkdown(html) : html;
+
+            // Eliminar la tarjeta de datos de oficina (solo se muestra la ejecutiva)
+            content.querySelectorAll('.cb-office-card').forEach(el => el.remove());
 
             // Botón de voz en mensajes del bot (solo si tiene texto útil)
             if (type === 'bot' && window.speechSynthesis) {
@@ -524,6 +565,7 @@ const APP = (() => {
         },
 
         async send(text) {
+            if (AppLock.isLocked) return;   // Bloqueado mientras se graba un siniestro
             if (!text.trim()) return;
 
             this.addMessage('user', this._escapeHtml(text));
@@ -571,6 +613,14 @@ const APP = (() => {
                     }
                     if (data.frustration === 'high') {
                         msgEl.querySelector('.message-content')?.classList.add('msg-empathic');
+                    }
+
+                    // Respuesta fuera de tema: mostrar modal de Información la 1ª vez y luego cada 5
+                    if (!data.function && data.intent === 'general') {
+                        this._offTopicCount++;
+                        if ((this._offTopicCount === 1 || this._offTopicCount % 5 === 0) && DOM.featuresModal) {
+                            setTimeout(() => DOM.featuresModal.classList.remove('hidden'), 600);
+                        }
                     }
                 } else {
                     this.addMessage('bot', data.error || 'Lo siento, no he podido procesar tu consulta. Intentalo de nuevo.');
@@ -719,7 +769,10 @@ const APP = (() => {
                     }
 
                     const type = msg.role === 'user' ? 'user' : 'bot';
-                    const content = type === 'user' ? this._escapeHtml(msg.message) : msg.message;
+                    let content = type === 'user' ? this._escapeHtml(msg.message) : msg.message;
+                    if (type === 'bot') {
+                        content = content.replace(/O describe tu consulta/gi, 'Escribe tu consulta');
+                    }
 
                     const wrapper = document.createElement('div');
                     wrapper.className = `message ${type} history-msg`;
@@ -756,6 +809,8 @@ const APP = (() => {
                     });
                     // Borrar chat: eliminar confirmación
                     contentDiv.querySelectorAll('.cb-clear-confirm').forEach(el => el.remove());
+                    // Eliminar tarjeta de datos de oficina (solo se muestra la ejecutiva)
+                    contentDiv.querySelectorAll('.cb-office-card').forEach(el => el.remove());
 
                     // Hora del mensaje desde el servidor
                     const time = document.createElement('span');
@@ -1974,9 +2029,10 @@ const APP = (() => {
             // Obtener descripción de la póliza
             const headerText = form.dataset.polizaDesc || ciaPoliza;
 
-            // Deshabilitar formulario
+            // Deshabilitar formulario y bloquear toda la app
             form.querySelectorAll('input, textarea, button').forEach(el => el.disabled = true);
             submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Registrando...';
+            AppLock.lock('Registrando siniestro…');
 
             try {
                 const formData = new FormData();
@@ -2027,9 +2083,11 @@ const APP = (() => {
                 }
                 form.querySelector('.cb-siniestro-form-actions').innerHTML = '<div class="cb-siniestro-form-footer"><i class="bi bi-info-circle"></i> Tu ejecutiva de cuentas revisará el parte y se pondrá en contacto contigo.</div>';
 
+                AppLock.unlock();
 
             } catch (err) {
                 console.error('Error registrando siniestro:', err);
+                AppLock.unlock();
                 form.querySelectorAll('input, textarea').forEach(el => el.disabled = false);
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="bi bi-check-lg"></i> Registrar siniestro';
