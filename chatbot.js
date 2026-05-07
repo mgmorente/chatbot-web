@@ -506,9 +506,6 @@ const APP = (() => {
             content.className = 'message-content';
             content.innerHTML = type === 'bot' ? this._formatMarkdown(html) : html;
 
-            // Eliminar la tarjeta de datos de oficina (solo se muestra la ejecutiva)
-            content.querySelectorAll('.cb-office-card').forEach(el => el.remove());
-
             // Botón de voz en mensajes del bot (solo si tiene texto útil)
             if (type === 'bot' && window.speechSynthesis) {
                 const textContent = content.textContent.trim();
@@ -809,8 +806,6 @@ const APP = (() => {
                     });
                     // Borrar chat: eliminar confirmación
                     contentDiv.querySelectorAll('.cb-clear-confirm').forEach(el => el.remove());
-                    // Eliminar tarjeta de datos de oficina (solo se muestra la ejecutiva)
-                    contentDiv.querySelectorAll('.cb-office-card').forEach(el => el.remove());
 
                     // Hora del mensaje desde el servidor
                     const time = document.createElement('span');
@@ -2204,6 +2199,188 @@ const APP = (() => {
                 if (text) Chat.send(text);
             }
         });
+
+        // =====================================================================
+        // ACTION DOCK — dock flotante con 2 niveles, equivalente al de Staff
+        // Sustituye al menú de 3 puntos. Soporta:
+        //   - data-msg → envía el texto al chat (Chat.send)
+        //   - data-dock-proxy → hace click() sobre el botón legacy oculto
+        // =====================================================================
+        const actionDock = document.getElementById('action-dock');
+        const actionDockSublayer = document.getElementById('action-dock-sublayer');
+        const actionDockSublayerInner = actionDockSublayer
+            ? actionDockSublayer.querySelector('.action-dock__sublayer-inner')
+            : null;
+        const btnDockToggle = document.getElementById('btn-dock-toggle');
+
+        if (actionDock && actionDockSublayer && actionDockSublayerInner) {
+            const DOCK_GROUPS = {
+                cliente: {
+                    title: 'Mis datos',
+                    items: [
+                        { icon: 'bi-person-lines-fill', label: 'Datos personales', msg: '¿Cuáles son mis datos personales?' },
+                        { icon: 'bi-pencil-square',     label: 'Modificar datos',  msg: 'Quiero modificar mis datos personales' },
+                        { icon: 'bi-geo-alt-fill',      label: 'Mi oficina',       msg: '¿Cuál es mi oficina?' },
+                    ],
+                },
+                polizas: {
+                    title: 'Pólizas y pagos',
+                    items: [
+                        { icon: 'bi-file-earmark-text', label: 'Mis pólizas',         msg: '¿Qué pólizas tengo?' },
+                        { icon: 'bi-cash-stack',        label: 'Mis pagos',           msg: '¿Cuánto pago por mis seguros?' },
+                        { icon: 'bi-calendar-check',    label: 'Próximos recibos',    msg: '¿Cuáles son mis próximos recibos?' },
+                        { icon: 'bi-file-earmark-arrow-down', label: 'Duplicado',     msg: 'Quiero un duplicado de mi póliza' },
+                        { icon: 'bi-wallet2',           label: 'Wallet',              msg: 'Quiero la tarjeta wallet de mi póliza' },
+                    ],
+                },
+                siniestros: {
+                    title: 'Siniestros',
+                    items: [
+                        { icon: 'bi-search',         label: 'Mis siniestros', msg: '¿Qué siniestros tengo abiertos?' },
+                        { icon: 'bi-plus-circle',    label: 'Nuevo siniestro', msg: 'Quiero dar de alta un siniestro' },
+                    ],
+                },
+                mas: {
+                    title: 'Más opciones',
+                    items: [
+                        { icon: 'bi-box-arrow-up-right', label: 'eCliente',     proxy: 'btn-ecliente' },
+                        { icon: 'bi-moon-fill',          label: 'Cambiar tema', proxy: 'btn-theme' },
+                        { icon: 'bi-trash3',             label: 'Borrar chat',  proxy: 'btn-clear-chat' },
+                        { icon: 'bi-phone',              label: 'Instalar app', proxy: 'btn-install-pwa' },
+                        { icon: 'bi-info-circle',        label: 'Información',  proxy: 'btn-features' },
+                        { icon: 'bi-box-arrow-right',    label: 'Cerrar sesión', proxy: 'btn-logout', variant: 'danger' },
+                    ],
+                },
+            };
+
+            const escapeAttr = (s) => String(s).replace(/"/g, '&quot;');
+
+            const renderDockSublayer = (groupKey) => {
+                const group = DOCK_GROUPS[groupKey];
+                if (!group) return;
+                const tiles = group.items.map(it => {
+                    const variantClass = it.variant ? ` action-dock__tile--${it.variant}` : '';
+                    const attrs = it.msg
+                        ? `data-msg="${escapeAttr(it.msg)}"`
+                        : `data-dock-proxy="${escapeAttr(it.proxy)}"`;
+                    return `
+                        <button type="button" class="action-dock__tile${variantClass}" ${attrs}>
+                            <i class="bi ${it.icon}"></i>
+                            <span>${it.label}</span>
+                        </button>`;
+                }).join('');
+                actionDockSublayerInner.innerHTML = `
+                    <div class="action-dock__sublayer-title">
+                        <span>${group.title}</span>
+                        <button type="button" class="action-dock__sublayer-close" aria-label="Cerrar">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    ${tiles}
+                `;
+            };
+
+            const closeDockSublayer = () => {
+                actionDockSublayer.classList.remove('is-open');
+                actionDockSublayer.setAttribute('aria-hidden', 'true');
+                actionDock.querySelectorAll('.action-dock__btn.is-open')
+                    .forEach(b => b.classList.remove('is-open'));
+            };
+
+            const openDockSublayer = (btn, groupKey) => {
+                renderDockSublayer(groupKey);
+                actionDock.querySelectorAll('.action-dock__btn.is-open')
+                    .forEach(b => b.classList.remove('is-open'));
+                btn.classList.add('is-open');
+                actionDockSublayer.classList.add('is-open');
+                actionDockSublayer.setAttribute('aria-hidden', 'false');
+            };
+
+            const showDock = () => {
+                actionDock.classList.add('is-visible');
+                if (btnDockToggle) btnDockToggle.classList.add('is-open');
+            };
+            const hideDock = () => {
+                closeDockSublayer();
+                actionDock.classList.remove('is-visible');
+                if (btnDockToggle) btnDockToggle.classList.remove('is-open');
+            };
+            const toggleDock = () => {
+                if (actionDock.classList.contains('is-visible')) hideDock();
+                else showDock();
+            };
+
+            if (btnDockToggle) {
+                btnDockToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleDock();
+                });
+            }
+
+            // Click handler en el dock
+            actionDock.addEventListener('click', (e) => {
+                // Cerrar sublayer
+                if (e.target.closest('.action-dock__sublayer-close')) {
+                    closeDockSublayer();
+                    return;
+                }
+                // Tile del segundo nivel
+                const tile = e.target.closest('.action-dock__tile');
+                if (tile) {
+                    const proxyId = tile.getAttribute('data-dock-proxy');
+                    const msg = tile.getAttribute('data-msg');
+                    if (proxyId) {
+                        const target = document.getElementById(proxyId);
+                        if (target) target.click();
+                    } else if (msg) {
+                        Chat.send(msg);
+                    }
+                    hideDock();
+                    return;
+                }
+                // Botón del primer nivel
+                const btn = e.target.closest('.action-dock__btn');
+                if (btn) {
+                    const directMsg = btn.getAttribute('data-msg');
+                    const directProxy = btn.getAttribute('data-dock-proxy');
+                    if (directMsg || directProxy) {
+                        closeDockSublayer();
+                        if (directProxy) {
+                            const target = document.getElementById(directProxy);
+                            if (target) target.click();
+                        } else if (directMsg) {
+                            Chat.send(directMsg);
+                        }
+                        hideDock();
+                        return;
+                    }
+                    const group = btn.getAttribute('data-dock-group');
+                    if (btn.classList.contains('is-open')) {
+                        closeDockSublayer();
+                    } else {
+                        openDockSublayer(btn, group);
+                    }
+                }
+            });
+
+            // Cerrar al hacer clic fuera
+            document.addEventListener('click', (e) => {
+                if (!actionDock.classList.contains('is-visible')) return;
+                if (e.target.closest('#action-dock')) return;
+                if (e.target.closest('#btn-dock-toggle')) return;
+                hideDock();
+            });
+
+            // Cerrar con Escape
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== 'Escape') return;
+                if (actionDockSublayer.classList.contains('is-open')) {
+                    closeDockSublayer();
+                } else if (actionDock.classList.contains('is-visible')) {
+                    hideDock();
+                }
+            });
+        }
     }
 
     // ===== INIT =====

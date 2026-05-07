@@ -24,7 +24,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="styles.css?v=17" rel="stylesheet">
+    <link href="styles.css?v=18" rel="stylesheet">
 </head>
 
 <body>
@@ -140,33 +140,18 @@
                         <span id="user-initials" class="user-initials"></span>
                         <span id="user-name" class="user-name"></span>
                     </div>
-                    <div class="avatar-menu-wrap">
-                        <button id="btn-avatar-menu" class="btn-avatar-menu" title="Menu">
-                            <i class="bi bi-three-dots-vertical"></i>
-                        </button>
-                        <div id="avatar-dropdown" class="avatar-dropdown hidden">
-                            <button id="btn-ecliente" class="avatar-dropdown-item">
-                                <i class="bi bi-box-arrow-up-right"></i> eCliente
-                            </button>
-                            <button id="btn-theme" class="avatar-dropdown-item">
-                                <i class="bi bi-moon-fill"></i> Cambiar tema
-                            </button>
-                            <button id="btn-clear-chat" class="avatar-dropdown-item">
-                                <i class="bi bi-trash3"></i> Borrar chat
-                            </button>
-                            <button id="btn-install-pwa" class="avatar-dropdown-item" style="display:none">
-                                <i class="bi bi-phone"></i> Instalar en móvil
-                            </button>
-                            <div class="avatar-dropdown-divider"></div>
-                            <button id="btn-features" class="avatar-dropdown-item">
-                                <i class="bi bi-info-circle"></i> Informacion
-                            </button>
-                            <div class="avatar-dropdown-divider"></div>
-                            <button id="btn-logout" class="avatar-dropdown-item avatar-dropdown-item--danger">
-                                <i class="bi bi-box-arrow-right"></i> Cerrar sesion
-                            </button>
-                        </div>
-                    </div>
+                </div>
+                <!-- Botones legacy (ocultos): mantienen los IDs para que la lógica
+                     existente de JS (Auth.logout, Theme.toggle, eCliente, features-modal,
+                     borrar chat, instalar PWA) siga funcionando. El nuevo action-dock
+                     hace data-dock-proxy hacia ellos. -->
+                <div class="legacy-actions" hidden aria-hidden="true">
+                    <button id="btn-ecliente" type="button"></button>
+                    <button id="btn-theme" type="button"></button>
+                    <button id="btn-clear-chat" type="button"></button>
+                    <button id="btn-install-pwa" type="button" style="display:none"></button>
+                    <button id="btn-features" type="button"></button>
+                    <button id="btn-logout" type="button"></button>
                 </div>
             </header>
 
@@ -203,6 +188,39 @@
                 </button>
             </div>
 
+            <!-- Action Dock: botones circulares con sub-niveles, equivalente al de Staff -->
+            <div id="action-dock" class="action-dock" role="toolbar" aria-label="Acciones rápidas">
+                <div id="action-dock-sublayer" class="action-dock__sublayer" aria-hidden="true">
+                    <div class="action-dock__sublayer-inner"></div>
+                </div>
+                <div class="action-dock__bar">
+                    <button class="action-dock__btn" type="button" data-dock-group="cliente" aria-label="Mis datos">
+                        <span class="action-dock__icon"><i class="bi bi-person-vcard"></i></span>
+                        <span class="action-dock__label">Cliente</span>
+                    </button>
+                    <button class="action-dock__btn" type="button" data-dock-group="polizas" aria-label="Pólizas y pagos">
+                        <span class="action-dock__icon"><i class="bi bi-shield-check"></i></span>
+                        <span class="action-dock__label">Pólizas</span>
+                    </button>
+                    <button class="action-dock__btn" type="button" data-dock-group="siniestros" aria-label="Siniestros">
+                        <span class="action-dock__icon"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                        <span class="action-dock__label">Siniestros</span>
+                    </button>
+                    <button class="action-dock__btn" type="button" data-msg="Telefonos de asistencia" aria-label="Teléfonos de asistencia">
+                        <span class="action-dock__icon"><i class="bi bi-telephone-fill"></i></span>
+                        <span class="action-dock__label">Teléfonos</span>
+                    </button>
+                    <button class="action-dock__btn" type="button" data-msg="¿Cuál es mi oficina?" aria-label="Mi oficina">
+                        <span class="action-dock__icon"><i class="bi bi-geo-alt-fill"></i></span>
+                        <span class="action-dock__label">Oficina</span>
+                    </button>
+                    <button class="action-dock__btn" type="button" data-dock-group="mas" aria-label="Más opciones">
+                        <span class="action-dock__icon"><i class="bi bi-grid-3x3-gap-fill"></i></span>
+                        <span class="action-dock__label">Más</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- Input -->
             <footer class="chat-input-area">
                 <form id="chat-form" class="chat-form">
@@ -215,6 +233,11 @@
                         </button>
                         <button type="button" id="btn-mic" class="btn-mic" title="Pulsa para grabar">
                             <i class="bi bi-mic-fill"></i>
+                        </button>
+                    </div>
+                    <div class="chat-actions-right">
+                        <button type="button" class="btn-dock-toggle" id="btn-dock-toggle" title="Menú de acciones" aria-label="Menú de acciones">
+                            <i class="bi bi-grid-3x3-gap-fill"></i>
                         </button>
                     </div>
                 </form>
@@ -413,7 +436,7 @@
     </div>
 
     <script src="env.js"></script>
-    <script src="chatbot.js?v=22"></script>
+    <script src="chatbot.js?v=23"></script>
 
     <!-- Service Worker & PWA Install -->
     <script>
