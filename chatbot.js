@@ -2284,6 +2284,7 @@ const APP = (() => {
                         { icon: 'bi-trash3',             label: 'Borrar chat',  proxy: 'btn-clear-chat' },
                         { icon: 'bi-phone',              label: 'Instalar app', proxy: 'btn-install-pwa' },
                         { icon: 'bi-info-circle',        label: 'Información',  proxy: 'btn-features' },
+                        { icon: 'bi-compass',            label: 'Guía rápida',  proxy: 'btn-tour' },
                         { icon: 'bi-arrow-clockwise',    label: 'Actualizar',   proxy: 'btn-force-update' },
                         { icon: 'bi-box-arrow-right',    label: 'Cerrar sesión', proxy: 'btn-logout', variant: 'danger' },
                     ],
@@ -2420,6 +2421,257 @@ const APP = (() => {
         }
     }
 
+    // ===== TOUR MODULE — Guía interactiva paso a paso =====
+    const Tour = {
+        _idx: 0,
+        _steps: [],
+        _overlay: null,
+        _spotlight: null,
+        _tooltip: null,
+        _arrow: null,
+        _titleEl: null,
+        _bodyEl: null,
+        _counterEl: null,
+        _btnPrev: null,
+        _btnNext: null,
+        _btnClose: null,
+        _onResize: null,
+        _onKey: null,
+
+        init() {
+            this._overlay   = document.getElementById('tour-overlay');
+            if (!this._overlay) return;
+            this._spotlight = this._overlay.querySelector('.tour-spotlight');
+            this._tooltip   = this._overlay.querySelector('.tour-tooltip');
+            this._arrow     = this._overlay.querySelector('.tour-tooltip-arrow');
+            this._titleEl   = this._overlay.querySelector('.tour-tooltip-title');
+            this._bodyEl    = this._overlay.querySelector('.tour-tooltip-body');
+            this._counterEl = this._overlay.querySelector('.tour-step-counter');
+            this._btnPrev   = this._overlay.querySelector('[data-tour="prev"]');
+            this._btnNext   = this._overlay.querySelector('[data-tour="next"]');
+            this._btnClose  = this._overlay.querySelector('.tour-close');
+
+            this._btnPrev.addEventListener('click', (e) => { e.stopPropagation(); this.prev(); });
+            this._btnNext.addEventListener('click', (e) => { e.stopPropagation(); this.next(); });
+            this._btnClose.addEventListener('click', (e) => { e.stopPropagation(); this.stop(); });
+            // Click en cualquier sitio (excepto el tooltip) avanza al siguiente paso.
+            // stopPropagation evita que el listener global del dock (que cierra al
+            // clicar fuera) lo cierre justo cuando el step nuevo lo acaba de abrir.
+            this._overlay.addEventListener('click', (e) => {
+                if (e.target.closest('.tour-tooltip')) return;
+                e.stopPropagation();
+                this.next();
+            });
+
+            const btnTour = document.getElementById('btn-tour');
+            if (btnTour) btnTour.addEventListener('click', () => this.start());
+        },
+
+        _defaultSteps() {
+            return [
+                {
+                    selector: '.chat-header',
+                    title: 'Bienvenido a PACCMAN',
+                    body: 'Tu asistente de seguros 24/7 de Grupo PACC. En esta guía te enseñamos lo esencial.',
+                    placement: 'bottom',
+                },
+                {
+                    selector: '#chat-box',
+                    title: 'Aquí están tus conversaciones',
+                    body: 'PACCMAN te responde aquí. Cada respuesta tiene un botón para escucharla en voz alta.',
+                    placement: 'top',
+                },
+                {
+                    selector: '#chat-input',
+                    title: 'Escribe tu consulta',
+                    body: 'Pregunta como hablarías con tu ejecutiva: "¿Qué pólizas tengo?", "Quiero un duplicado"…',
+                    placement: 'top',
+                    fallback: '.chat-form',
+                },
+                {
+                    selector: '#btn-mic',
+                    title: 'O habla por voz',
+                    body: 'Pulsa el micrófono y habla con normalidad. PACCMAN transcribe y te responde.',
+                    placement: 'top',
+                },
+                {
+                    selector: '#btn-dock-toggle',
+                    title: 'Menú de accesos rápidos',
+                    body: 'Desde aquí entras a tus datos, pólizas y pagos, siniestros y más opciones.',
+                    placement: 'top',
+                    fallback: '.chat-actions-right',
+                },
+                {
+                    selector: '.action-dock__bar',
+                    title: 'Tu menú de opciones',
+                    body: 'Aquí tienes 4 grupos: Cliente, Pólizas, Siniestros y Más opciones (información, guía, actualizar y cerrar sesión).',
+                    placement: 'top',
+                    before: () => {
+                        const d = document.getElementById('action-dock');
+                        if (d) d.classList.add('is-visible');
+                    },
+                    after: () => {
+                        const d = document.getElementById('action-dock');
+                        if (d) d.classList.remove('is-visible');
+                    },
+                },
+            ];
+        },
+
+        start(steps) {
+            this._steps = (steps && steps.length ? steps : this._defaultSteps())
+                .filter(s => {
+                    const el = document.querySelector(s.selector) || (s.fallback && document.querySelector(s.fallback));
+                    return el || !s.optional;
+                });
+            if (!this._steps.length) return;
+            this._idx = 0;
+            this._overlay.classList.remove('hidden');
+            this._overlay.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            this._onResize = () => this._render();
+            this._onKey = (e) => {
+                if (e.key === 'Escape') this.stop();
+                else if (e.key === 'ArrowRight') this.next();
+                else if (e.key === 'ArrowLeft')  this.prev();
+            };
+            window.addEventListener('resize', this._onResize);
+            window.addEventListener('scroll',  this._onResize, true);
+            window.addEventListener('keydown', this._onKey);
+            const first = this._steps[0];
+            if (first && typeof first.before === 'function') {
+                try { first.before(); } catch (_) {}
+                // Esperar a que termine la animación del elemento (p.ej. dock) antes de medir
+                setTimeout(() => this._render(), 280);
+            } else {
+                this._render();
+            }
+        },
+
+        stop() {
+            // Cerrar el step actual (callbacks 'after')
+            const cur = this._steps[this._idx];
+            if (cur && typeof cur.after === 'function') {
+                try { cur.after(); } catch (_) {}
+            }
+            this._overlay.classList.add('hidden');
+            this._overlay.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            window.removeEventListener('resize', this._onResize);
+            window.removeEventListener('scroll', this._onResize, true);
+            window.removeEventListener('keydown', this._onKey);
+        },
+
+        next() {
+            if (this._idx >= this._steps.length - 1) { this.stop(); return; }
+            this._goto(this._idx + 1);
+        },
+
+        prev() {
+            if (this._idx <= 0) return;
+            this._goto(this._idx - 1);
+        },
+
+        _goto(newIdx) {
+            const prevStep = this._steps[this._idx];
+            const nextStep = this._steps[newIdx];
+            if (prevStep && typeof prevStep.after === 'function') {
+                try { prevStep.after(); } catch (_) {}
+            }
+            this._idx = newIdx;
+            if (nextStep && typeof nextStep.before === 'function') {
+                try { nextStep.before(); } catch (_) {}
+                // Esperar a que termine la animación del elemento antes de medir
+                setTimeout(() => this._render(), 280);
+                return;
+            }
+            this._render();
+        },
+
+        _resolve(step) {
+            return document.querySelector(step.selector) || (step.fallback && document.querySelector(step.fallback));
+        },
+
+        _render() {
+            const step = this._steps[this._idx];
+            const el = this._resolve(step);
+            if (!el) { this.next(); return; }
+
+            try { el.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (_) {}
+
+            const r = el.getBoundingClientRect();
+            const pad = 6;
+            const left   = Math.max(0, r.left - pad);
+            const top    = Math.max(0, r.top - pad);
+            const width  = r.width + pad * 2;
+            const height = r.height + pad * 2;
+
+            this._spotlight.style.left   = left   + 'px';
+            this._spotlight.style.top    = top    + 'px';
+            this._spotlight.style.width  = width  + 'px';
+            this._spotlight.style.height = height + 'px';
+
+            this._titleEl.textContent  = step.title || '';
+            this._bodyEl.textContent   = step.body  || '';
+            this._counterEl.textContent = `Paso ${this._idx + 1} de ${this._steps.length}`;
+
+            this._btnPrev.disabled = (this._idx === 0);
+            this._btnNext.innerHTML = (this._idx === this._steps.length - 1)
+                ? 'Finalizar <i class="bi bi-check2"></i>'
+                : 'Siguiente <i class="bi bi-arrow-right"></i>';
+
+            const tt = this._tooltip;
+            tt.style.visibility = 'hidden';
+            tt.style.left = '0px';
+            tt.style.top = '0px';
+            const tw = tt.offsetWidth;
+            const th = tt.offsetHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const margin = 12;
+
+            let placement = step.placement || 'bottom';
+            const space = {
+                top:    top - margin,
+                bottom: vh - (top + height) - margin,
+                left:   left - margin,
+                right:  vw - (left + width) - margin,
+            };
+            if (space[placement] < th + 10 && (placement === 'top' || placement === 'bottom')) {
+                placement = (space.top > space.bottom) ? 'top' : 'bottom';
+            }
+            if (space[placement] < tw + 10 && (placement === 'left' || placement === 'right')) {
+                placement = (space.left > space.right) ? 'left' : 'right';
+            }
+
+            let ttLeft, ttTop, arrowSide;
+            if (placement === 'bottom') {
+                ttLeft = left + width / 2 - tw / 2;
+                ttTop  = top + height + margin;
+                arrowSide = 'top';
+            } else if (placement === 'top') {
+                ttLeft = left + width / 2 - tw / 2;
+                ttTop  = top - th - margin;
+                arrowSide = 'bottom';
+            } else if (placement === 'left') {
+                ttLeft = left - tw - margin;
+                ttTop  = top + height / 2 - th / 2;
+                arrowSide = 'right';
+            } else {
+                ttLeft = left + width + margin;
+                ttTop  = top + height / 2 - th / 2;
+                arrowSide = 'left';
+            }
+            ttLeft = Math.max(8, Math.min(ttLeft, vw - tw - 8));
+            ttTop  = Math.max(8, Math.min(ttTop,  vh - th - 8));
+
+            tt.style.left = ttLeft + 'px';
+            tt.style.top  = ttTop  + 'px';
+            tt.dataset.arrow = arrowSide;
+            tt.style.visibility = '';
+        },
+    };
+
     // ===== INIT =====
     async function init() {
         cacheDom();
@@ -2428,6 +2680,7 @@ const APP = (() => {
         Voice.init();
         Autocomplete.init();
         Scroll.init();
+        Tour.init();
 
         if (Session.init()) {
             // Validar con el backend que la sesión sigue válida (control de IP)
@@ -2447,7 +2700,6 @@ const APP = (() => {
                         UI.showUserBadge(Session.nombre);
                         Chat.loadHistory();
                     } else {
-                        // Sesión inválida (expirada o IP diferente) → login
                         Session.clear();
                         UI.showScreen('login');
                     }
@@ -2458,7 +2710,6 @@ const APP = (() => {
                 }
             } catch (err) {
                 console.error('[Session validation error]', err);
-                // Si falla la validación, permitir usar la sesión cacheada
                 UI.showScreen('chat');
                 UI.showUserBadge(Session.nombre);
                 Chat.loadHistory();
@@ -2468,12 +2719,11 @@ const APP = (() => {
         }
     }
 
-    // Boot
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
         init();
     }
 
-    return { Session, Chat, Auth, UI, Voice, Theme };
+    return { Session, Chat, Auth, UI, Voice, Theme, Tour };
 })();

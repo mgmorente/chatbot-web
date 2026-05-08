@@ -4215,3 +4215,189 @@ a.cb-action-btn:hover {
     transform: translateY(8px) scale(0.85);
     pointer-events: none;
 }
+
+/* =====================================================================
+   TOUR / GUÍA INTERACTIVA — overlay con spotlight + tooltip
+   ===================================================================== */
+.tour-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: auto;
+    background: transparent;
+}
+
+.tour-overlay.hidden {
+    display: none;
+}
+
+.tour-spotlight {
+    position: absolute;
+    border-radius: 12px;
+    box-shadow:
+        0 0 0 9999px rgba(15, 23, 42, 0.62),
+        0 0 0 2px rgba(255, 255, 255, 0.85),
+        0 0 24px rgba(26, 86, 219, 0.45);
+    transition: top 0.25s cubic-bezier(.2,.9,.3,1.2),
+                left 0.25s cubic-bezier(.2,.9,.3,1.2),
+                width 0.25s cubic-bezier(.2,.9,.3,1.2),
+                height 0.25s cubic-bezier(.2,.9,.3,1.2);
+    pointer-events: none;
+}
+
+.tour-tooltip {
+    position: absolute;
+    width: min(320px, calc(100vw - 24px));
+    background: var(--surface, #ffffff);
+    color: var(--text, #1f2937);
+    border-radius: 16px;
+    padding: 14px 16px 12px;
+    box-shadow:
+        0 24px 60px rgba(0, 0, 0, 0.28),
+        0 6px 16px rgba(0, 0, 0, 0.10);
+    border: 1px solid var(--border-color, #e5e7eb);
+    transition: top 0.25s cubic-bezier(.2,.9,.3,1.2),
+                left 0.25s cubic-bezier(.2,.9,.3,1.2);
+}
+
+.tour-tooltip-arrow {
+    position: absolute;
+    width: 14px; height: 14px;
+    background: var(--surface, #ffffff);
+    border: 1px solid var(--border-color, #e5e7eb);
+    transform: rotate(45deg);
+}
+
+.tour-tooltip[data-arrow="top"] .tour-tooltip-arrow {
+    top: -8px; left: 50%; margin-left: -7px;
+    border-right: none; border-bottom: none;
+}
+.tour-tooltip[data-arrow="bottom"] .tour-tooltip-arrow {
+    bottom: -8px; left: 50%; margin-left: -7px;
+    border-left: none; border-top: none;
+}
+.tour-tooltip[data-arrow="left"] .tour-tooltip-arrow {
+    left: -8px; top: 50%; margin-top: -7px;
+    border-right: none; border-top: none;
+}
+.tour-tooltip[data-arrow="right"] .tour-tooltip-arrow {
+    right: -8px; top: 50%; margin-top: -7px;
+    border-left: none; border-bottom: none;
+}
+
+.tour-tooltip-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.tour-step-counter {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--primary, #1a56db);
+}
+
+.tour-close {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.05);
+    color: var(--text-secondary, #6b7280);
+    font-size: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.tour-close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger, #ef4444);
+}
+
+.tour-tooltip-title {
+    margin: 2px 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #1f2937);
+}
+
+.tour-tooltip-body {
+    margin: 0 0 12px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: var(--text-secondary, #4b5563);
+}
+
+.tour-tooltip-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tour-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.tour-btn--ghost {
+    background: transparent;
+    color: var(--text-secondary, #6b7280);
+    border-color: var(--border-color, #e5e7eb);
+}
+.tour-btn--ghost:hover:not(:disabled) {
+    background: rgba(0,0,0,0.04);
+    color: var(--text, #1f2937);
+}
+.tour-btn--ghost:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.tour-btn--primary {
+    background: var(--primary, #1a56db);
+    color: #ffffff;
+}
+.tour-btn--primary:hover {
+    background: var(--primary-dark, #1e40af);
+}
+
+/* Dark */
+[data-theme="dark"] .tour-tooltip {
+    background: #1e293b;
+    color: var(--text);
+    border-color: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .tour-tooltip-arrow {
+    background: #1e293b;
+    border-color: rgba(255,255,255,0.08);
+}
+[data-theme="dark"] .tour-tooltip-title { color: var(--text); }
+[data-theme="dark"] .tour-tooltip-body  { color: var(--text-secondary); }
+[data-theme="dark"] .tour-close {
+    background: rgba(255,255,255,0.06);
+    color: var(--text-secondary);
+}
+[data-theme="dark"] .tour-btn--ghost {
+    border-color: rgba(255,255,255,0.12);
+    color: var(--text-secondary);
+}
+[data-theme="dark"] .tour-btn--ghost:hover:not(:disabled) {
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+}
+
+@media (max-width: 480px) {
+    .tour-tooltip { width: calc(100vw - 24px); }
+}
