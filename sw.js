@@ -4,7 +4,7 @@
  * Usa rutas relativas al scope del SW para funcionar en cualquier subdirectorio
  */
 
-const CACHE_NAME = 'paccman-v10';
+const CACHE_NAME = 'paccman-v11';
 
 // ===== INSTALL: cachear assets estáticos =====
 self.addEventListener('install', (event) => {

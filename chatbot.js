@@ -318,6 +318,7 @@ const APP = (() => {
         DOM.featuresClose  = document.getElementById('features-modal-close');
         DOM.btnScrollDown  = document.getElementById('btn-scroll-down');
         DOM.btnInstallPwa  = document.getElementById('btn-install-pwa');
+        DOM.btnForceUpdate = document.getElementById('btn-force-update');
     }
 
     // ===== SESSION MODULE =====
@@ -1474,6 +1475,41 @@ const APP = (() => {
             });
         }
 
+        // Botón Actualizar: limpia Service Worker + cachés y recarga con cache-busting
+        if (DOM.btnForceUpdate) {
+            DOM.btnForceUpdate.addEventListener('click', async () => {
+                Chat.addMessage('bot',
+                    '<div class="cb-update-msg">'
+                    + '<i class="bi bi-arrow-clockwise spin"></i> '
+                    + 'Actualizando a la última versión…'
+                    + '</div>'
+                );
+                Scroll.auto();
+                try {
+                    // 1) Borrar todas las cachés del navegador (Service Worker)
+                    if ('caches' in window) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map(k => caches.delete(k)));
+                    }
+                    // 2) Desregistrar Service Worker(s)
+                    if ('serviceWorker' in navigator) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(regs.map(r => r.unregister()));
+                    }
+                } catch (err) {
+                    console.warn('[ForceUpdate] limpieza parcial:', err);
+                }
+                // 3) Recarga con cache-busting (mantiene sesión en localStorage)
+                try {
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('_v', Date.now().toString());
+                    window.location.replace(url.toString());
+                } catch (_) {
+                    window.location.reload();
+                }
+            });
+        }
+
         // Botón limpiar conversación (confirmación en el chat)
         if (DOM.btnClearChat) {
             DOM.btnClearChat.addEventListener('click', () => {
@@ -2248,6 +2284,7 @@ const APP = (() => {
                         { icon: 'bi-trash3',             label: 'Borrar chat',  proxy: 'btn-clear-chat' },
                         { icon: 'bi-phone',              label: 'Instalar app', proxy: 'btn-install-pwa' },
                         { icon: 'bi-info-circle',        label: 'Información',  proxy: 'btn-features' },
+                        { icon: 'bi-arrow-clockwise',    label: 'Actualizar',   proxy: 'btn-force-update' },
                         { icon: 'bi-box-arrow-right',    label: 'Cerrar sesión', proxy: 'btn-logout', variant: 'danger' },
                     ],
                 },

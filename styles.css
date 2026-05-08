@@ -3535,6 +3535,23 @@ a.cb-action-btn:hover {
     flex: 1;
 }
 
+.cb-update-msg {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.cb-update-msg .spin {
+    display: inline-block;
+    animation: cb-update-spin 0.9s linear infinite;
+}
+
+@keyframes cb-update-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
 .fm-intro {
     margin: 0 0 20px;
     padding: 12px 14px;
